@@ -1,6 +1,15 @@
 #include "DalitzPlotPdf.hh"
 #include <complex>
-using std::complex; 
+using std::complex;
+
+template <typename T> __host__ complex<T> makecomplex(T a, T b)
+{
+#ifdef USE_POLAR_AMPLITUDES
+  return complex<T>(a*COS(b*PHASE_CONVERSION_FACTOR), a*SIN(b*PHASE_CONVERSION_FACTOR));
+#else
+  return complex<T>(a, b);
+#endif
+}
 
 const int resonanceOffset_DP = 4; // Offset of the first resonance into the parameter index array 
 // Offset is number of parameters, constant index, number of resonances (not calculable 
@@ -65,12 +74,15 @@ EXEC_TARGET fptype device_DalitzPlot (fptype* evt, fptype* p, unsigned int* indi
 
   for (int i = 0; i < numResonances; ++i) {
     int paramIndex  = parIndexFromResIndex_DP(i);
-    fptype amp_real = p[indices[paramIndex+0]];
-    fptype amp_imag = p[indices[paramIndex+1]];
-
+    //fptype amp_real = p[indices[paramIndex+0]];
+    //fptype amp_imag = p[indices[paramIndex+1]];
+    
+    // behaviour depends on compile flag, between cartesian and polar interpretation of parameters
+    devcomplex<fptype> amp(makedevcomplex(p[indices[paramIndex+0]], p[indices[paramIndex+1]]));
+    
     devcomplex<fptype> matrixelement((cResonances[cacheToUse][evtNum*numResonances + i]).real,
 				     (cResonances[cacheToUse][evtNum*numResonances + i]).imag); 
-    matrixelement.multiply(amp_real, amp_imag); 
+    matrixelement *= amp;//.multiply(amp_real, amp_imag);
     totalAmp += matrixelement; 
   } 
    
@@ -247,10 +259,10 @@ __host__ fptype DalitzPlotPdf::normalise () const {
   complex<fptype> sumIntegral(0, 0);
   for (unsigned int i = 0; i < decayInfo->resonances.size(); ++i) {
     int param_i = parameters + resonanceOffset_DP + resonanceSize*i; 
-    complex<fptype> amplitude_i(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]);
+    complex<fptype> amplitude_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]));
     for (unsigned int j = 0; j < decayInfo->resonances.size(); ++j) {
       int param_j = parameters + resonanceOffset_DP + resonanceSize*j; 
-      complex<fptype> amplitude_j(host_params[host_indices[param_j]], -host_params[host_indices[param_j + 1]]); 
+      complex<fptype> amplitude_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]])));
       // Notice complex conjugation
 
       sumIntegral += (amplitude_i * amplitude_j * complex<fptype>((*(integrals[i][j])).real, (*(integrals[i][j])).imag)); 
@@ -265,6 +277,45 @@ __host__ fptype DalitzPlotPdf::normalise () const {
 
   host_normalisation[parameters] = 1.0/ret;
   return (fptype) ret; 
+}
+
+__host__ std::vector<std::vector<fptype> > DalitzPlotPdf::getFitFractions()
+{
+  // Work out the fit fractions
+  // Make sure everything is set up
+  copyParams();
+  normalise();
+  // this does calculate the denominator we're interested in,
+  // but with some extra constants so lets just do it ourselves to keep things explicit
+  
+  // make the default NaN so it's obvious if we look at the wrong off-diagonals
+  std::vector<std::vector<fptype> > fractions(decayInfo->resonances.size(), std::vector<fptype>(decayInfo->resonances.size(), std::numeric_limits<fptype>::quiet_NaN()));
+  
+  fptype norm_sum(0.0);
+  for(unsigned int i = 0; i < decayInfo->resonances.size(); ++i)
+  {
+    int param_i = parameters + resonanceOffset_DP + resonanceSize*i;
+    complex<fptype> amplitude_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]));
+
+    for(unsigned int j = i; j < decayInfo->resonances.size(); ++j) // only fill one half of the results
+    {
+      int param_j = parameters + resonanceOffset_DP + resonanceSize*j;
+      complex<fptype> amplitude_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]])));
+      // Notice complex conjugation
+      amplitude_j *= amplitude_i * complex<fptype>((*(integrals[i][j])).real, (*(integrals[i][j])).imag);
+      // for the diagonals, this complex number is actually real
+      // for the off-diagonals, the opposite elements sum to twice the real part of either
+      // but we're just populating one side of the matrix so multiply it by two
+      fractions[i][j] = (1.0 + (i != j)) * amplitude_j.real();// / denominator;
+      norm_sum += fractions[i][j];
+    }
+  }
+  
+  for(unsigned int i = 0; i < decayInfo->resonances.size(); ++i)
+    for(unsigned int j = i; j < decayInfo->resonances.size(); ++j) // only fill one half of the results
+      fractions[i][j] /= norm_sum;
+  
+  return fractions;
 }
 
 SpecialResonanceIntegrator::SpecialResonanceIntegrator (int pIdx, unsigned int ri, unsigned int rj) 

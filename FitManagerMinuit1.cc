@@ -38,9 +38,21 @@ void FitManager::setupMinuit () {
   minuit->SetFCN(FitFun); 
 }
 
-void FitManager::fit () {
+void FitManager::fit(FitAlgorithm algo)
+{
   setupMinuit();
-  runMigrad();
+  switch(algo)
+  {
+    case MIGRAD:
+      runMigrad();
+      break;
+    case SEEK:
+      runSeek();
+      break;
+    default:
+      std::cout << "FitManager::fit(" << algo << "): unknown algorithm" << std::endl;
+      break;
+  }
 }
 
 void FitManager::runMigrad () { 
@@ -56,11 +68,53 @@ void FitManager::runMigrad () {
   else minuit->Migrad(); 
 }
 
+void FitManager::runSeek()
+{
+  assert(minuit);
+  minuit->SetPrintLevel(1);
+  if(overrideCallLimit > 0)
+  {
+    std::cout << "Calling SEEK with call limit " << overrideCallLimit << std::endl;
+    double plist[1] = { overrideCallLimit };
+    int err(0);
+    minuit->mnexcm("SEEK", plist, 1, err);
+  }
+  else
+  {
+    minuit->mnseek();
+  }
+}
+
 void FitManager::getMinuitValues () const {
   int counter = 0; 
-  for (std::vector<Variable*>::iterator i = vars.begin(); i != vars.end(); ++i) {
+  for (std::vector<Variable*>::iterator i = vars.begin(); i != vars.end(); ++i)
+  {
+    double tmp1, tmp2, tmp3;
+    minuit->mnerrs(counter, tmp1, tmp2, tmp3, (*i)->gcc);
     minuit->GetParameter(counter++, (*i)->value, (*i)->error);
   }
+}
+
+void FitManager::getMinosErrors() const {
+  int counter = 0;
+  minuit->mnmnos();
+  for (std::vector<Variable*>::iterator i = vars.begin(); i != vars.end(); ++i)
+  {
+    double eparab,gcc;
+    minuit->mnerrs(counter++, (*i)->error_pos, (*i)->error_neg, eparab, (*i)->gcc);
+  }
+}
+
+void FitManager::getMinuitStatus(double& fmin, double& fedm, double& errdef, int& npari, int& nparx, int& istat) const
+{
+  minuit->mnstat(fmin, fedm, errdef, npari, nparx, istat);
+  std::cout << "mnstat(fmin = " << fmin << ", fedm = " << fedm << ", errdef = " << errdef
+    << ", npari = " << npari << ", nparx = " << nparx << ", istat = " << istat << ")" << std::endl;
+}
+
+PdfBase* FitManager::getPdfPointer()
+{
+  return pdfPointer;
 }
 
 void FitFun(int &npar, double *gin, double &fun, double *fp, int iflag) {

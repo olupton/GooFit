@@ -6,15 +6,8 @@
 typedef devcomplex<fptype> (*resonance_function_ptr) (fptype, fptype, fptype, unsigned int*); 
 
 class ResonancePdf : public GooPdf {
-  // Service class intended to hold parametrisations of
-  // resonances on Dalitz plots. Don't try to use this
-  // as a standalone PDF! It should only be used as a
-  // component in one of the friend classes. It extends
-  // GooPdf so as to take advantage of the 
-  // infrastructure, but will crash if used on its own. 
-
   friend class TddpPdf;
-  friend class DalitzPlotPdf; 
+  friend class DalitzPlotPdf;
   friend class IncoherentSumPdf; 
 public:
   // Constructor for regular BW 
@@ -24,26 +17,55 @@ public:
 			  Variable* mass, 
 			  Variable* width, 
 			  unsigned int sp, 
-			  unsigned int cyc); 
-
-  // Gounaris-Sakurai
-  ResonancePdf (string name, 
-			  Variable* ar, 
-			  Variable* ai, 
-			  unsigned int sp, 
-			  Variable* mass, 
-			  Variable* width, 
-			  unsigned int cyc); 
- 
-  // LASS constructor
+			  unsigned int cyc);
+  
+  enum CouplingTreatment { MULTIPLY_BY_NOMINAL_MASS = 0, SQUARE };
+  enum WhichMeson { F = 0, A };
+  enum MesonCharge { CHARGED, NEUTRAL };
+  
+  // Constructor for Flatte lineshape
   ResonancePdf (string name,
                           Variable* ar,
                           Variable* ai,
-			  Variable* mass,
-			  unsigned int sp,
-                          Variable* width,
-                          unsigned int cyc);
+                          Variable* mass,
+                          Variable* g_1,
+                          Variable* g_KK_over_g_1,
+                          unsigned int cyc,
+                          CouplingTreatment square_couplings,
+                          WhichMeson a_meson,
+                          MesonCharge charged_meson);
+  // Old Flatte
+  //ResonancePdf (string name,
+  //      Variable* ar,
+  //      Variable* ai,
+  //      Variable* mass,
+  //      Variable* g_pi,
+  //      Variable* g_k,
+  //      unsigned int sp,
+  //      unsigned int cyc);
+
+  // Constructor for LASS lineshape
+  ResonancePdf (string name,
+        Variable* ar,
+        Variable* ai,
+        Variable* mass,
+        Variable* width,
+        Variable* lass_a,
+        Variable* lass_r,
+        Variable* lass_phi_f,
+        Variable* lass_phi_r,
+        Variable* lass_F,
+        unsigned int sp,
+        unsigned int cyc);
   
+  // Gounaris-Sakurai
+  ResonancePdf (string name,
+			  Variable* ar,
+			  Variable* ai,
+			  unsigned int sp,
+			  Variable* mass,
+			  Variable* width,
+			  unsigned int cyc);
 
   // Nonresonant constructor
   ResonancePdf (string name, 

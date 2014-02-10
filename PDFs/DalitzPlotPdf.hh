@@ -4,6 +4,7 @@
 #include "GooPdf.hh" 
 #include "DalitzPlotHelpers.hh" 
 #include "devcomplex.hh"
+#include <vector>
 
 class SpecialResonanceIntegrator;
 class SpecialResonanceCalculator; 
@@ -16,7 +17,8 @@ public:
   // normalisation will get *really* confused and give wrong answers. 
 
   __host__ virtual fptype normalise () const;
-  __host__ void setDataSize (unsigned int dataSize, unsigned int evtSize = 3); 
+  __host__ void setDataSize (unsigned int dataSize, unsigned int evtSize = 3);
+  __host__ std::vector<std::vector<fptype> > getFitFractions();
   __host__ void setForceIntegrals (bool f = true) {forceRedoIntegrals = f;}  
 
 protected:

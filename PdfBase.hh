@@ -72,6 +72,13 @@ public:
   __host__ void registerObservable (Variable* obs); 
   __host__ void setIntegrationFineness (int i); 
   __host__ void printProfileInfo (bool topLevel = true);
+  __host__ const std::vector<const PdfBase*> getComponents() const
+  {
+    std::vector<const PdfBase*> tmp;
+    for(std::vector<PdfBase*>::const_iterator i = components.begin(); i != components.end(); i++)
+      tmp.push_back(*i);
+    return tmp;
+  }
 
   __host__ bool parametersChanged () const; 
   __host__ void storeParameters () const;

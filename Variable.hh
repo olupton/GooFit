@@ -29,7 +29,7 @@ struct Variable : Indexable {
   Variable (std::string n, fptype v, fptype e, fptype dn, fptype up);
   ~Variable (); 
 
-  fptype error;
+  fptype error, error_pos, error_neg, gcc;
   fptype upperlimit;
   fptype lowerlimit;
   int numbins; 

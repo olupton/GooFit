@@ -90,7 +90,9 @@ EXEC_TARGET fptype calculateNLL (fptype rawPdf, fptype* evtVal, unsigned int par
   //if ((10 > callnumber) && (THREADIDX < 10) && (BLOCKIDX == 0)) cuPrintf("calculateNll %i %f %f %f\n", callnumber, rawPdf, normalisationFactors[par], rawPdf*normalisationFactors[par]);
   //if (THREADIDX < 50) printf("Thread %i %f %f\n", THREADIDX, rawPdf, normalisationFactors[par]); 
   rawPdf *= normalisationFactors[par];
-  return rawPdf > 0 ? -LOG(rawPdf) : 0; 
+  //if(rawPdf == 0.0)
+  //  printf("calculateNLL got rawPdf == 0.0 so is returning 0.0: %i %u %f %f\n", callnumber, par, rawPdf, normalisationFactors[par]);
+  return rawPdf > 0 ? -LOG(rawPdf) : (rawPdf == 0.0 ? 1e3 : 0); 
 }
 
 EXEC_TARGET fptype calculateProb (fptype rawPdf, fptype* evtVal, unsigned int par) {
@@ -463,7 +465,7 @@ EXEC_TARGET fptype MetricTaker::operator () (thrust::tuple<int, fptype*, int> t)
  
 // Operator for binned evaluation, no metric. 
 // Used in normalisation. 
-#define MAX_NUM_OBSERVABLES 5
+#define MAX_NUM_OBSERVABLES 2
 EXEC_TARGET fptype MetricTaker::operator () (thrust::tuple<int, int, fptype*> t) const {
   // Bin index, event size, base address [lower, upper, numbins] 
  
