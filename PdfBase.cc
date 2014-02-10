@@ -1,5 +1,6 @@
 #include "GlobalCudaDefines.hh"
 #include "PdfBase.hh" 
+#include <algorithm>
 
 fptype* dev_event_array;
 fptype host_normalisation[maxParams];
