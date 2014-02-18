@@ -58,6 +58,18 @@ public:
         unsigned int sp,
         unsigned int cyc);
   
+  // Constructor for Brian's LASS lineshape
+  ResonancePdf (string name,
+                Variable* ar,
+                Variable* ai,
+                Variable* mass,
+                Variable* width,
+                Variable* lass_a,
+                Variable* lass_r,
+                const std::vector<Variable*> &poly_coeffs,
+                unsigned int sp,
+                unsigned int cyc);
+  
   // Gounaris-Sakurai
   ResonancePdf (string name,
 			  Variable* ar,

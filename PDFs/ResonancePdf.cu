@@ -155,7 +155,7 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
   fptype q(twoBodyCMmom((PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23)),
                         (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass),
                         (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
-  fptype q0(twoBodyCMmom(resmass,
+  fptype q0(twoBodyCMmom(resmass*resmass,
                          (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass),
                          (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
 
@@ -174,6 +174,54 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
   nonres_part *= q0 / (reswidth * resmass * resmass);
   
   return BW_part + nonres_part;
+}
+
+__device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsigned int *indices)
+{
+  // need these to calculate the K,pi momentum in the Kpi frame
+  fptype daug1Mass              = functorConstants[indices[1]+1];
+  fptype daug2Mass              = functorConstants[indices[1]+2];
+  fptype daug3Mass              = functorConstants[indices[1]+3];
+  
+  fptype resmass                = cudaArray[indices[2]];
+  fptype reswidth               = cudaArray[indices[3]];
+  unsigned int cyclic_index     = indices[5];
+  // extra LASS parameters
+  fptype lass_a                 = cudaArray[indices[6]];
+  fptype lass_r                 = cudaArray[indices[7]];
+  unsigned int num_poly_coeffs  = indices[8];
+  // these are stored in cudaArray[indices[9]] .. cudaArray[indices[8 + num_poly_coeffs]]
+  
+  fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
+  fptype q(twoBodyCMmom(rMassSq,
+                        (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass),
+                        (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
+  fptype q0(twoBodyCMmom(resmass*resmass,
+                         (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass),
+                         (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
+  
+  // This is the LASS phase shift
+  fptype delta_f(atan(2.0*lass_a*q/(2.0 + lass_a*lass_r*q*q)));
+  
+  // Calculate the running width
+  fptype resrunwidth(reswidth * q * resmass / (q0 * SQRT(rMassSq)));
+  // This is the regular BW phase shift
+  fptype delta_r(atan2(resrunwidth * resmass, resmass * resmass - rMassSq));
+
+  // To match the plainBW function we would have to return:
+  //   (q0 * SQRT(rMassSq) / (reswidth * resmass * resmass * q)) * sin(delta_r) * exp(i*delta_r)
+  // we want to do this but with delta_r -> delta_r + delta_f, and then multiply the whole thing by a polynomial
+  
+  devcomplex<fptype> ret(cos(delta_r + delta_f), sin(delta_r + delta_f));
+  ret *= sin(delta_r + delta_f) * q0 * SQRT(rMassSq) / (reswidth * resmass * resmass * q);
+  
+  fptype poly(1.0);
+  fptype expansion_parameter(SQRT(rMassSq) / resmass);
+  for(unsigned int poly_index = 1; poly_index <= num_poly_coeffs; ++poly_index)
+    poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[8 + poly_index]];
+  
+  ret *= poly;
+  return ret;
 }
 
 // this is the general case
@@ -422,6 +470,7 @@ __device__ void getAmplitudeCoefficients (devcomplex<fptype> a1, devcomplex<fpty
 __device__ resonance_function_ptr ptr_to_RBW = plainBW;
 __device__ resonance_function_ptr ptr_to_FLATTE = flatte;
 __device__ resonance_function_ptr ptr_to_LASS = lass;
+__device__ resonance_function_ptr ptr_to_polynomialLASS = polylass;
 __device__ resonance_function_ptr ptr_to_GOUSAK = gouSak; 
 __device__ resonance_function_ptr ptr_to_GAUSSIAN = gaussian;
 __device__ resonance_function_ptr ptr_to_NONRES = nonres;
@@ -522,6 +571,36 @@ ResonancePdf::ResonancePdf (string name,
 
   
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_LASS, sizeof(void*));
+  initialise(pindices);
+}
+
+ResonancePdf::ResonancePdf(std::string name,
+              Variable* ar,
+              Variable* ai,
+              Variable* mass,
+              Variable* width,
+              Variable* lass_a,
+              Variable* lass_r,
+              const std::vector<Variable*> &poly_coeffs,
+              unsigned int sp,
+              unsigned int cyc)
+: GooPdf(0, name)
+, amp_real(ar)
+, amp_imag(ai)
+{
+  std::vector<unsigned int> pindices;
+  pindices.push_back(0); // copying the rest of the constructors...
+  pindices.push_back(registerParameter(mass));
+  pindices.push_back(registerParameter(width));
+  pindices.push_back(sp);
+  pindices.push_back(cyc);
+  pindices.push_back(registerParameter(lass_a));
+  pindices.push_back(registerParameter(lass_r)); // might as well match the other LASS shape up to this point
+  pindices.push_back(poly_coeffs.size());
+  for(std::vector<Variable*>::const_iterator poly_iter = poly_coeffs.begin(); poly_iter != poly_coeffs.end(); poly_iter++)
+    pindices.push_back(registerParameter(*poly_iter));
+  
+  cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_polynomialLASS, sizeof(void*));
   initialise(pindices);
 }
 
