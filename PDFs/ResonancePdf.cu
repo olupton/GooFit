@@ -572,6 +572,9 @@ ResonancePdf::ResonancePdf (string name,
   
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_LASS, sizeof(void*));
   initialise(pindices);
+  
+  if(sp)
+    std::cout << "WARNING from LASS shape constructor: spin " << sp << " requested, at present this is ignored" << std::endl;
 }
 
 ResonancePdf::ResonancePdf(std::string name,
@@ -602,6 +605,9 @@ ResonancePdf::ResonancePdf(std::string name,
   
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_polynomialLASS, sizeof(void*));
   initialise(pindices);
+  
+  if(sp)
+    std::cout << "WARNING from Polynomial LASS shape constructor: spin " << sp << " requested, at present this is ignored" << std::endl;
 }
 
 ResonancePdf::ResonancePdf (string name,
