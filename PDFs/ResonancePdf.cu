@@ -179,6 +179,7 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
 __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsigned int *indices)
 {
   // need these to calculate the K,pi momentum in the Kpi frame
+  fptype motherMass             = functorConstants[indices[1]+0];
   fptype daug1Mass              = functorConstants[indices[1]+1];
   fptype daug2Mass              = functorConstants[indices[1]+2];
   fptype daug3Mass              = functorConstants[indices[1]+3];
@@ -215,12 +216,23 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
   devcomplex<fptype> ret(cos(delta_r + delta_f), sin(delta_r + delta_f));
   ret *= sin(delta_r + delta_f) * q0 * SQRT(rMassSq) / (reswidth * resmass * resmass * q);
   
-  fptype poly(1.0);
+  fptype
+    rMassMin(PAIR_12 == cyclic_index ? daug1Mass + daug2Mass : (PAIR_13 == cyclic_index ? daug1Mass + daug3Mass : daug2Mass + daug3Mass)),
+    rMassMax(PAIR_12 == cyclic_index ? motherMass - daug3Mass: (PAIR_13 == cyclic_index ? motherMass - daug2Mass: motherMass - daug1Mass)),
+    poly(1.0),
+    polynorm(rMassMax - rMassMin);
   fptype expansion_parameter(SQRT(rMassSq) / resmass);
   for(unsigned int poly_index = 1; poly_index <= num_poly_coeffs; ++poly_index)
-    poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[8 + poly_index]];
+  {
+    fptype coeff(cudaArray[indices[8 + poly_index]]);
+    int exponent(poly_index);
+    poly += pow(expansion_parameter, exponent) * coeff;
+    exponent++;
+    polynorm += pow(rMassMax, exponent) * coeff / fptype(exponent);
+    polynorm -= pow(rMassMin, exponent) * coeff / fptype(exponent);
+  }
   
-  ret *= poly;
+  ret *= poly / polynorm;
   return ret;
 }
 
