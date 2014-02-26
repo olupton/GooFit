@@ -121,16 +121,17 @@ __host__ DalitzPlotPdf::DalitzPlotPdf (std::string n,
   registerObservable(_m13);
   registerObservable(eventNumber); 
 
-  fptype decayConstants[5];
+  fptype decayConstants[6];
   
   std::vector<unsigned int> pindices;
-  pindices.push_back(registerConstants(5)); 
+  pindices.push_back(registerConstants(6));
   decayConstants[0] = decayInfo->motherMass;
   decayConstants[1] = decayInfo->daug1Mass;
   decayConstants[2] = decayInfo->daug2Mass;
   decayConstants[3] = decayInfo->daug3Mass;
   decayConstants[4] = decayInfo->meson_radius;
-  MEMCPY_TO_SYMBOL(functorConstants, decayConstants, 5*sizeof(fptype), cIndex*sizeof(fptype), cudaMemcpyHostToDevice);  
+  decayConstants[5] = decayInfo->mother_meson_radius;
+  MEMCPY_TO_SYMBOL(functorConstants, decayConstants, 6*sizeof(fptype), cIndex*sizeof(fptype), cudaMemcpyHostToDevice);
 
   pindices.push_back(decayInfo->resonances.size()); 
   static int cacheCount = 0; 

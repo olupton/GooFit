@@ -20,6 +20,7 @@ struct DecayInfo {
   fptype daug2Mass;
   fptype daug3Mass;
   fptype meson_radius;
+  fptype mother_meson_radius;
 
   Variable* _tau; 
   Variable* _xmixing;

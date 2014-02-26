@@ -14,11 +14,20 @@ __device__ fptype twoBodyCMmom (double rMassSq, fptype d1m, fptype d2m) {
   return 0.5*SQRT(rMassSq)*kin1*kin2; 
 }
 
+__device__ fptype bachelorMom(fptype otherMass, fptype motherMass, fptype bachelorMass)
+{
+  fptype ret(POW(motherMass, 2.0) - POW(otherMass + bachelorMass, 2.0));
+  ret *= POW(motherMass, 2.0) - POW(otherMass - bachelorMass, 2.0);
+  if(ret < 0.0)
+    ret = 0.0;
+  ret = SQRT(ret) * 0.5 / otherMass;
+  return ret;
+}
 
 __device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius) {
   fptype square = mRadius*mRadius*cmmom*cmmom;
   fptype dfsq = 1 + square; // This accounts for spin 1
-  if (2 == spin) dfsq += 8 + 2*square + square*square; // Coefficients are 9, 3, 1.   
+  if (2 == spin) dfsq += 8 + 2*square + square*square; // Coefficients are 9, 3, 1.
 
   // Spin 3 and up not accounted for. 
   return dfsq; 
@@ -75,7 +84,8 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   fptype daug2Mass              = functorConstants[indices[1]+2];
   fptype daug3Mass              = functorConstants[indices[1]+3];
   fptype meson_radius           = functorConstants[indices[1]+4];
-
+  fptype mother_meson_radius    = functorConstants[indices[1]+5];
+  
   fptype resmass                = cudaArray[indices[2]];
   fptype reswidth               = cudaArray[indices[3]];
   unsigned int spin             = indices[4];
@@ -91,12 +101,18 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
 					    (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
   fptype nominalDaughterMoms = twoBodyCMmom(resmass, 
 					    (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass), 
-					    (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
+                                            (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
+  
+  
 
   if (0 != spin) {
     frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
-    frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius); 
-  }  
+    frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius);
+    
+    fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
+    frFactor *= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor /= dampingFactorSquare(bachelorMom(SQRT(resmass), motherMass, bachelorMass), spin, mother_meson_radius);
+  }
  
   // RBW evaluation
   fptype A = (resmass - rMassSq); 
@@ -216,23 +232,12 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
   devcomplex<fptype> ret(cos(delta_r + delta_f), sin(delta_r + delta_f));
   ret *= sin(delta_r + delta_f) * q0 * SQRT(rMassSq) / (reswidth * resmass * resmass * q);
   
-  fptype
-    rMassMin(PAIR_12 == cyclic_index ? daug1Mass + daug2Mass : (PAIR_13 == cyclic_index ? daug1Mass + daug3Mass : daug2Mass + daug3Mass)),
-    rMassMax(PAIR_12 == cyclic_index ? motherMass - daug3Mass: (PAIR_13 == cyclic_index ? motherMass - daug2Mass: motherMass - daug1Mass)),
-    poly(1.0),
-    polynorm(rMassMax - rMassMin);
+  fptype poly(1.0);
   fptype expansion_parameter(SQRT(rMassSq) / resmass);
   for(unsigned int poly_index = 1; poly_index <= num_poly_coeffs; ++poly_index)
-  {
-    fptype coeff(cudaArray[indices[8 + poly_index]]);
-    int exponent(poly_index);
-    poly += pow(expansion_parameter, exponent) * coeff;
-    exponent++;
-    polynorm += pow(rMassMax, exponent) * coeff / fptype(exponent);
-    polynorm -= pow(rMassMin, exponent) * coeff / fptype(exponent);
-  }
+    poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[8 + poly_index]];
   
-  ret *= poly / polynorm;
+  ret *= poly;
   return ret;
 }
 
