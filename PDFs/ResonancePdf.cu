@@ -195,7 +195,7 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
 __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsigned int *indices)
 {
   // need these to calculate the K,pi momentum in the Kpi frame
-  fptype motherMass             = functorConstants[indices[1]+0];
+  //fptype motherMass             = functorConstants[indices[1]+0];
   fptype daug1Mass              = functorConstants[indices[1]+1];
   fptype daug2Mass              = functorConstants[indices[1]+2];
   fptype daug3Mass              = functorConstants[indices[1]+3];
