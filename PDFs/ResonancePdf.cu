@@ -23,7 +23,7 @@ __device__ fptype bachelorMom(fptype otherMass, fptype motherMass, fptype bachel
   fptype ret(POW(motherMass, 2.0) - POW(otherMass + bachelorMass, 2.0));
   ret *= POW(motherMass, 2.0) - POW(otherMass - bachelorMass, 2.0);
   if(ret < 0.0)
-    ret = 0.0;
+    return 0.0;
   ret = SQRT(ret) * 0.5 / otherMass;
   return ret;
 }
@@ -114,10 +114,6 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   {
     frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
     frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius);
-    
-    fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
-    frFactor *= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
-    frFactor /= dampingFactorSquare(bachelorMom(SQRT(resmass), motherMass, bachelorMass), spin, mother_meson_radius);
   }
  
   // RBW evaluation
@@ -125,8 +121,16 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   fptype B = resmass*reswidth * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin + 1) * frFactor / SQRT(rMassSq);
   fptype C = 1.0 / (A*A + B*B); 
   devcomplex<fptype> ret(A*C, B*C); // Dropping F_D=1
+  
+  // Don't want the F_D penetration factor in the mass-dependent width
+  if(0 != spin)
+  {
+    fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
+    frFactor *= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor /= dampingFactorSquare(bachelorMom(SQRT(resmass), motherMass, bachelorMass), spin, mother_meson_radius);
+  }
 
-  ret *= SQRT(frFactor); 
+  ret *= SQRT(frFactor);
   fptype spinF = spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index); 
   ret *= spinF; 
 
