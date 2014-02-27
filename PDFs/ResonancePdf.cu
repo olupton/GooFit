@@ -14,8 +14,12 @@ __device__ fptype twoBodyCMmom (double rMassSq, fptype d1m, fptype d2m) {
   return 0.5*SQRT(rMassSq)*kin1*kin2; 
 }
 
+// For D -> (R -> AB)C calculate momentum of C (and D) in rest frame of R (A+B)
+// otherMass is m_R, motherMass is m_D and bachelorMass is m_C
 __device__ fptype bachelorMom(fptype otherMass, fptype motherMass, fptype bachelorMass)
 {
+  if(motherMass < otherMass + bachelorMass)
+    return 0.0;
   fptype ret(POW(motherMass, 2.0) - POW(otherMass + bachelorMass, 2.0));
   ret *= POW(motherMass, 2.0) - POW(otherMass - bachelorMass, 2.0);
   if(ret < 0.0)
@@ -27,7 +31,8 @@ __device__ fptype bachelorMom(fptype otherMass, fptype motherMass, fptype bachel
 __device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius) {
   fptype square = mRadius*mRadius*cmmom*cmmom;
   fptype dfsq = 1 + square; // This accounts for spin 1
-  if (2 == spin) dfsq += 8 + 2*square + square*square; // Coefficients are 9, 3, 1.
+  if (2 == spin)
+    dfsq += 8 + 2*square + square*square; // Coefficients are 9, 3, 1.
 
   // Spin 3 and up not accounted for. 
   return dfsq; 
@@ -105,7 +110,8 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   
   
 
-  if (0 != spin) {
+  if (0 != spin)
+  {
     frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
     frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius);
     
