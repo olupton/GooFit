@@ -5,11 +5,16 @@ __device__ fptype twoBodyCMmom (double rMassSq, fptype d1m, fptype d2m) {
   // PDG 38.16.
 
   fptype kin1 = 1 - POW(d1m+d2m, 2) / rMassSq;
-  if (kin1 >= 0) kin1 = SQRT(kin1);
-  else kin1 = 1;
+  if (kin1 > 0)
+    kin1 = SQRT(kin1);
+  else
+    kin1 = 1;
+  
   fptype kin2 = 1 - POW(d1m-d2m, 2) / rMassSq;
-  if (kin2 >= 0) kin2 = SQRT(kin2);
-  else kin2 = 1; 
+  if (kin2 > 0)
+    kin2 = SQRT(kin2);
+  else
+    kin2 = 1;
 
   return 0.5*SQRT(rMassSq)*kin1*kin2; 
 }
@@ -18,14 +23,23 @@ __device__ fptype twoBodyCMmom (double rMassSq, fptype d1m, fptype d2m) {
 // otherMass is m_R, motherMass is m_D and bachelorMass is m_C
 __device__ fptype bachelorMom(fptype otherMass, fptype motherMass, fptype bachelorMass)
 {
-  if(motherMass < otherMass + bachelorMass)
-    return 0.0;
-  fptype ret(POW(motherMass, 2.0) - POW(otherMass + bachelorMass, 2.0));
-  ret *= POW(motherMass, 2.0) - POW(otherMass - bachelorMass, 2.0);
-  if(ret < 0.0)
-    return 0.0;
-  ret = SQRT(ret) * 0.5 / otherMass;
-  return ret;
+  // This will sometimes get called with masses which are kinematically forbidden (i.e. m_R + m_C > m_D)
+  // In these cases we just want to return something of the right order of magnitude.
+  // The way in which we do this is just copied from the twoBodyCMmom() function above.
+  fptype
+    kin1(1.0 - POW((otherMass + bachelorMass)/motherMass, 2.0)),
+    kin2(1.0 - POW((otherMass - bachelorMass)/motherMass, 2.0));
+  if(kin1 >= 0.0)
+    kin1 = SQRT(kin1);
+  else
+    kin1 = 1.0;
+  
+  if(kin2 >= 0.0)
+    kin2 = SQRT(kin2);
+  else
+    kin2 = 1.0;
+  
+  return 0.5 * POW(motherMass, 2.0) * kin1 * kin2 / otherMass;
 }
 
 __device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius) {
