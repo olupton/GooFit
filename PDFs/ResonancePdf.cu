@@ -219,7 +219,7 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
 __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsigned int *indices)
 {
   // need these to calculate the K,pi momentum in the Kpi frame
-  //fptype motherMass             = functorConstants[indices[1]+0];
+  fptype motherMass             = functorConstants[indices[1]+0];
   fptype daug1Mass              = functorConstants[indices[1]+1];
   fptype daug2Mass              = functorConstants[indices[1]+2];
   fptype daug3Mass              = functorConstants[indices[1]+3];
@@ -231,6 +231,7 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
   fptype lass_a                 = cudaArray[indices[6]];
   fptype lass_r                 = cudaArray[indices[7]];
   unsigned int num_poly_coeffs  = indices[8];
+  unsigned int formfactor_type  = indices[9];
   // these are stored in cudaArray[indices[9]] .. cudaArray[indices[8 + num_poly_coeffs]]
   
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
@@ -257,9 +258,69 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
   ret *= sin(delta_r + delta_f) * q0 * SQRT(rMassSq) / (reswidth * resmass * resmass * q);
   
   fptype poly(1.0);
-  fptype expansion_parameter(SQRT(rMassSq) / resmass);
-  for(unsigned int poly_index = 1; poly_index <= num_poly_coeffs; ++poly_index)
-    poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[8 + poly_index]];
+  
+  if(formfactor_type == ResonancePdf::RECURSIVEPOLY)
+  {
+    fptype coefffornext(1.0);
+    fptype expansion_parameter(SQRT(rMassSq) / resmass);
+    if(num_poly_coeffs == 0)
+    {
+      // If we don't have any floating parameters just return 1
+    }
+    else
+    {
+      poly = 0.0;
+
+      // This should be a0*x*x + (1-a0)(a1*x + (1-a1))
+      for(unsigned int poly_index = 0; poly_index <= num_poly_coeffs; ++poly_index)
+      {
+        fptype coeff(poly_index == num_poly_coeffs ? 1.0 : cudaArray[indices[10 + poly_index]]);
+        poly += pow(expansion_parameter, int(num_poly_coeffs - poly_index)) * coeff * coefffornext;
+        coefffornext *= (1.0 - fabs(coeff));
+     }
+    }
+  }
+  else if(formfactor_type == ResonancePdf::POLY)
+  {
+    fptype expansion_parameter(SQRT(rMassSq) / resmass);
+    poly = pow(expansion_parameter, int(num_poly_coeffs)); // 2 coefficents: a + bx + xx
+    for(unsigned int poly_index = 0; poly_index < num_poly_coeffs; ++poly_index)
+      poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[10 + poly_index]];
+  }
+  else if(formfactor_type == ResonancePdf::EXPPOLY)
+  {
+    // form factor f(x) = exp(g(x)) so f(x) > 0
+    // g(x) expressed in Chebyshev polynomials
+    // with x = SQRT(rMassSq) scaled to [-1,+1]
+    fptype
+      rMassMin(PAIR_12 == cyclic_index ? daug1Mass + daug2Mass : (PAIR_13 == cyclic_index ? daug1Mass + daug3Mass : daug2Mass + daug3Mass)),
+      rMassMax(PAIR_12 == cyclic_index ? motherMass - daug3Mass: (PAIR_13 == cyclic_index ? motherMass - daug2Mass: motherMass - daug1Mass)),
+      x(-1.0 + 2.0*(SQRT(rMassSq) - rMassMin)/(rMassMax - rMassMin)),
+      norm(2.0);
+    for(unsigned int poly_index = 1; poly_index <= num_poly_coeffs; ++poly_index)
+    {
+      fptype coeff(cudaArray[indices[9 + poly_index]]);
+      if(poly_index == 1)
+        poly += coeff * x;
+      else if(poly_index == 2)
+      {
+        poly += coeff * (2.0*x*x - 1.0);
+        norm -= coeff * 2.0 / 3.0;
+      }
+      else if(poly_index == 3)
+      {
+        poly += coeff * (4.0*x*x*x - 3.0*x);
+      }
+      else
+        printf("Too high an order requested from PolynomialLASS\n");  
+    }
+  }
+  else
+  {
+    printf("Unknown form factor type requested\n");
+  }
+      
+  // poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[8 + poly_index]];
   
   ret *= poly;
   return ret;
@@ -627,7 +688,8 @@ ResonancePdf::ResonancePdf(std::string name,
               Variable* lass_r,
               const std::vector<Variable*> &poly_coeffs,
               unsigned int sp,
-              unsigned int cyc)
+              unsigned int cyc,
+              FormFactorType fftype)
 : GooPdf(0, name)
 , amp_real(ar)
 , amp_imag(ai)
@@ -641,6 +703,7 @@ ResonancePdf::ResonancePdf(std::string name,
   pindices.push_back(registerParameter(lass_a));
   pindices.push_back(registerParameter(lass_r)); // might as well match the other LASS shape up to this point
   pindices.push_back(poly_coeffs.size());
+  pindices.push_back(fftype);
   for(std::vector<Variable*>::const_iterator poly_iter = poly_coeffs.begin(); poly_iter != poly_coeffs.end(); poly_iter++)
     pindices.push_back(registerParameter(*poly_iter));
   
@@ -652,15 +715,15 @@ ResonancePdf::ResonancePdf(std::string name,
 }
 
 ResonancePdf::ResonancePdf (string name,
-						Variable* ar, 
-						Variable* ai, 
-						unsigned int sp, 
-						Variable* mass, 
-						Variable* width, 
-						unsigned int cyc) 
-  : GooPdf(0, name)
-  , amp_real(ar)
-  , amp_imag(ai)
+  Variable* ar, 
+  Variable* ai, 
+  unsigned int sp, 
+  Variable* mass, 
+	Variable* width, 
+  unsigned int cyc) 
+: GooPdf(0, name)
+, amp_real(ar)
+, amp_imag(ai)
 {
   // Same as BW except for function pointed to. 
   vector<unsigned int> pindices; 
@@ -675,11 +738,11 @@ ResonancePdf::ResonancePdf (string name,
 }
 
 ResonancePdf::ResonancePdf (string name, 
-						Variable* ar, 
-						Variable* ai) 
+  Variable* ar,
+  Variable* ai) 
   : GooPdf(0, name)
-  , amp_real(ar)
-  , amp_imag(ai)
+    , amp_real(ar)
+    , amp_imag(ai)
 {
   vector<unsigned int> pindices; 
   pindices.push_back(0); 
@@ -689,15 +752,15 @@ ResonancePdf::ResonancePdf (string name,
   initialise(pindices); 
 }
 
-ResonancePdf::ResonancePdf (string name,
-						Variable* ar, 
-						Variable* ai,
-						Variable* mean, 
-						Variable* sigma,
-						unsigned int cyc) 
+ResonancePdf::ResonancePdf (string name,																																																			  						
+    Variable* ar, 																		
+    Variable* ai,
+		Variable* mean, 
+		Variable* sigma,
+    unsigned int cyc) 
   : GooPdf(0, name)
-  , amp_real(ar)
-  , amp_imag(ai)
+    , amp_real(ar)
+    , amp_imag(ai)
 {
   vector<unsigned int> pindices; 
   pindices.push_back(0); 
@@ -708,8 +771,5 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(cyc); 
 
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_GAUSSIAN, sizeof(void*));
-  initialise(pindices); 
-
+  initialise(pindices); 	
 }
-
-

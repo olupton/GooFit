@@ -22,6 +22,7 @@ public:
   enum CouplingTreatment { MULTIPLY_BY_NOMINAL_MASS = 0, SQUARE };
   enum WhichMeson { F = 0, A };
   enum MesonCharge { CHARGED, NEUTRAL };
+  enum FormFactorType { EXPPOLY = 0 , POLY, RECURSIVEPOLY };
   
   // Constructor for Flatte lineshape
   ResonancePdf (string name,
@@ -68,7 +69,8 @@ public:
                 Variable* lass_r,
                 const std::vector<Variable*> &poly_coeffs,
                 unsigned int sp,
-                unsigned int cyc);
+                unsigned int cyc,
+                FormFactorType fftype);
   
   // Gounaris-Sakurai
   ResonancePdf (string name,
