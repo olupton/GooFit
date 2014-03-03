@@ -287,6 +287,14 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
     for(unsigned int poly_index = 0; poly_index < num_poly_coeffs; ++poly_index)
       poly += pow(expansion_parameter, int(poly_index)) * cudaArray[indices[10 + poly_index]];
   }
+  else if(formfactor_type == ResonancePdf::SENSIBLEPOLY)
+  {
+    // this expected to have as many coefficients as terms, and that the user will remember to fix one of them
+    poly = 0.0;
+    fptype expansion_parameter(SQRT(rMassSq) / resmass);
+    for(unsigned int poly_index = 0; poly_index < num_poly_coeffs; ++poly_index)
+      poly += cudaArray[indices[10 + poly_index]] * pow(expansion_parameter, int(poly_index));
+  }
   else if(formfactor_type == ResonancePdf::EXPPOLY)
   {
     // form factor f(x) = exp(g(x)) so f(x) > 0
