@@ -280,6 +280,19 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
      }
     }
   }
+  else if(formfactor_type == ResonancePdf::NORMPOLY)
+  {
+    fptype expansion_parameter(SQRT(rMassSq) / resmass);
+    fptype norm(1.0);
+    poly = 1.0;
+    for(unsigned int poly_index = 0; poly_index < num_poly_coeffs; ++poly_index)
+    {
+      fptype coeff(cudaArray[indices[10 + poly_index]]);
+      poly += pow(expansion_parameter, int(poly_index)) * coeff;
+      norm += coeff;
+    }
+    poly /= norm;
+  }
   else if(formfactor_type == ResonancePdf::POLY)
   {
     fptype expansion_parameter(SQRT(rMassSq) / resmass);

@@ -22,7 +22,7 @@ public:
   enum CouplingTreatment { MULTIPLY_BY_NOMINAL_MASS = 0, SQUARE };
   enum WhichMeson { F = 0, A };
   enum MesonCharge { CHARGED, NEUTRAL };
-  enum FormFactorType { EXPPOLY = 0 , POLY, RECURSIVEPOLY, SENSIBLEPOLY };
+  enum FormFactorType { EXPPOLY = 0 , POLY, RECURSIVEPOLY, SENSIBLEPOLY, NORMPOLY };
   
   // Constructor for Flatte lineshape
   ResonancePdf (string name,
