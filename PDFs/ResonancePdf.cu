@@ -280,7 +280,7 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
      }
     }
   }
-  else if(formfactor_type == ResonancePdf::NORMPOLY)
+  else if((formfactor_type == ResonancePdf::NORMPOLY) || (formfactor_type == ResonancePdf::NORMEXPPOLY))
   {
     fptype expansion_parameter(SQRT(rMassSq) / resmass);
     fptype norm(1.0);
@@ -288,10 +288,18 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
     for(unsigned int poly_index = 0; poly_index < num_poly_coeffs; ++poly_index)
     {
       fptype coeff(cudaArray[indices[10 + poly_index]]);
-      poly += pow(expansion_parameter, int(poly_index)) * coeff;
+      poly += pow(expansion_parameter, int(poly_index+1)) * coeff;
       norm += coeff;
     }
-    poly /= norm;
+
+    if(formfactor_type == ResonancePdf::NORMEXPPOLY)
+    {
+      poly = EXP(poly - norm); // exponential of the polynomial, divided by the exponential of when the parameter is 1
+    }
+    else
+    {
+      poly /= norm;
+    }
   }
   else if(formfactor_type == ResonancePdf::POLY)
   {
