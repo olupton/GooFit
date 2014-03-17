@@ -94,7 +94,7 @@ public:
 			  Variable* sigma,
 			  unsigned int cyc);
   
-  std::string getName() { return name; }
+  //std::string getName() { return name; }
   Variable* getAmpReal() { return amp_real; }
   Variable* getAmpImag() { return amp_imag; }
 
