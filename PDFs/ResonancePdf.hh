@@ -93,6 +93,10 @@ public:
 			  Variable* mean, 
 			  Variable* sigma,
 			  unsigned int cyc);
+  
+  std::string getName() { return name; }
+  Variable* getAmpReal() { return amp_real; }
+  Variable* getAmpImag() { return amp_imag; }
 
 private:
   void setConstantIndex (unsigned int idx) {host_indices[parameters + 1] = idx;}

@@ -40,8 +40,9 @@ CUDAHEADERS = $(CUDALOCATION)/include/
 PWD = $(shell /bin/pwd)
 SRCDIR = $(PWD)/PDFs
 
-INCLUDES += -I$(SRCDIR) -I$(PWD) -I$(CUDAHEADERS) -I$(PWD)/rootstuff 
-LIBS += -L$(CUDALOCATION)/$(CUDALIBDIR) -lcudart -L$(PWD)/rootstuff -lRootUtils 
+INCLUDES += -I$(SRCDIR) -I$(PWD) -I$(CUDAHEADERS) -I`root-config --incdir` # -I$(PWD)/rootstuff 
+LIBS += -L$(CUDALOCATION)/$(CUDALIBDIR) -lcudart # -L$(PWD)/rootstuff -lRootUtils 
+ROOT_INCLUDES = -I`root-config --incdir`
 
 # GooPdf must be first in CUDAglob, as it defines global variables.
 FUNCTORLIST    = $(SRCDIR)/GooPdf.cu 
@@ -59,7 +60,7 @@ ROOTUTILLIB	= $(ROOTRIPDIR)/libRootUtils.so
 .SUFFIXES: 
 .PHONY:		goofit clean 
 
-goofit:		$(THRUSTO) $(ROOTUTILLIB) 
+goofit:		$(THRUSTO) # $(ROOTUTILLIB) 
 		@echo "Built GooFit objects" 
 
 # One rule for GooFit objects.

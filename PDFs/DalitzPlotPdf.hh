@@ -19,7 +19,9 @@ public:
   __host__ virtual fptype normalise () const;
   __host__ void setDataSize (unsigned int dataSize, unsigned int evtSize = 3);
   __host__ std::vector<std::vector<fptype> > getFitFractions();
-  __host__ void setForceIntegrals (bool f = true) {forceRedoIntegrals = f;}  
+  __host__ void setForceIntegrals (bool f = true) {forceRedoIntegrals = f;}
+  __host__ const DecayInfo* getDecayInfo() const { return decayInfo; };
+  __host__ DEVICE_VECTOR<devcomplex<fptype> >* getCachedWaves() { return cachedWaves; }
 
 protected:
 
