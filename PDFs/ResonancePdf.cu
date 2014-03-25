@@ -551,6 +551,7 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   fptype daug2Mass              = functorConstants[indices[1]+2];
   fptype daug3Mass              = functorConstants[indices[1]+3];
   fptype meson_radius           = functorConstants[indices[1]+4];
+  fptype mother_meson_radius    = functorConstants[indices[1]+5];
 
   fptype resmass                = cudaArray[indices[2]];
   fptype reswidth               = cudaArray[indices[3]];
@@ -578,6 +579,15 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
 
   D       /= (E*E + F*F);
   devcomplex<fptype> retur(D*E, D*F); // Dropping F_D=1
+
+  // Don't want the F_D penetration factor in the mass-dependent width
+  if(0 != spin)
+  {
+    fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
+    frFactor *= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor /= dampingFactorSquare(bachelorMom(SQRT(resmass), motherMass, bachelorMass), spin, mother_meson_radius);
+  }
+
   retur *= SQRT(frFactor);
   retur *= spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index);
 
