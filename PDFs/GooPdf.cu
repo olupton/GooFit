@@ -259,7 +259,7 @@ __host__ double GooPdf::calculateNLL () const {
   //setDebugMask(0); 
 
   //if ((cpuDebug & 1) && (host_callnumber >= 1)) abortWithCudaPrintFlush(__FILE__, __LINE__, getName() + " debug abort", this); 
-  return 2*ret; 
+  return 2.0*ret; 
 }
 
 __host__ void GooPdf::evaluateAtPoints (Variable* var, std::vector<fptype>& res) {
