@@ -89,9 +89,13 @@ void FitManager::getMinuitValues () const {
   int counter = 0; 
   for (std::vector<Variable*>::iterator i = vars.begin(); i != vars.end(); ++i)
   {
-    double tmp1, tmp2, tmp3;
-    minuit->mnerrs(counter, tmp1, tmp2, tmp3, (*i)->gcc);
-    minuit->GetParameter(counter++, (*i)->value, (*i)->error);
+    Variable *var(*i);
+    double e_plus, e_minus, e_parabolic;
+    minuit->mnerrs(counter, e_plus, e_minus, var->error, var->gcc);
+    minuit->GetParameter(counter, var->value, e_parabolic);
+    if(fabs(e_parabolic - var->error)/var->error > 1e-3)
+      std::cout << "WARNING: FitManager::getMinuitValues(): parameter " << counter << ", (" << var->name << ") has parabolic error = " << var->error << " from mnerrs and " << e_parabolic << " from GetParameter()" << std::endl;
+    counter++;
   }
 }
 
@@ -100,7 +104,7 @@ void FitManager::getMinosErrors() const {
   minuit->mnmnos();
   for (std::vector<Variable*>::iterator i = vars.begin(); i != vars.end(); ++i)
   {
-    double eparab,gcc;
+    double eparab;
     minuit->mnerrs(counter++, (*i)->error_pos, (*i)->error_neg, eparab, (*i)->gcc);
   }
 }
