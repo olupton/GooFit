@@ -559,12 +559,14 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   unsigned int cyclic_index     = indices[5]; 
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
+  fptype daugAMass = (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass); // These are the two daughters
+  fptype daugBMass = (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass); // of the resonance
   fptype frFactor = 1;
 
   resmass *= resmass; 
   // Calculate momentum of the two daughters in the resonance rest frame; note symmetry under interchange (dm1 <-> dm2). 
-  fptype measureDaughterMoms = twoBodyCMmom(rMassSq, (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass), (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
-  fptype nominalDaughterMoms = twoBodyCMmom(resmass, (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass), (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
+  fptype measureDaughterMoms = twoBodyCMmom(rMassSq, daugAMass, daugBMass);
+  fptype nominalDaughterMoms = twoBodyCMmom(resmass, daugAMass, daugBMass);
 
   if (0 != spin) {
     frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
@@ -573,8 +575,8 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   
   // Implement Gro-Sak:
 
-  fptype D = (1.0 + dFun(resmass, daug2Mass, daug3Mass) * reswidth/SQRT(resmass));
-  fptype E = resmass - rMassSq + fsFun(rMassSq, resmass, reswidth, daug2Mass, daug3Mass);
+  fptype D = (1.0 + dFun(resmass, daugAMass, daugBMass) * reswidth/SQRT(resmass));
+  fptype E = resmass - rMassSq + fsFun(rMassSq, resmass, reswidth, daugAMass, daugBMass);
   fptype F = SQRT(resmass) * reswidth * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin + 1) * frFactor;
 
   D       /= (E*E + F*F);
