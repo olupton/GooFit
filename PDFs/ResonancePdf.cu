@@ -499,6 +499,7 @@ __device__ devcomplex<fptype> gaussian (fptype m12, fptype m13, fptype m23, unsi
   return devcomplex<fptype>(ret, 0); 
 }
 
+// Gou-Sak h()
 __device__ fptype hFun (double s, double daug2Mass, double daug3Mass) {
   // Last helper function
   const fptype _pi = 3.14159265359;
@@ -511,6 +512,8 @@ __device__ fptype hFun (double s, double daug2Mass, double daug3Mass) {
   return val;
 }
 
+// Gou-Sak h'()
+// This is strictly correct (the derivative of h(s) w.r.t 's') only when the daughter masses are equal
 __device__ fptype dh_dsFun (double s, double daug2Mass, double daug3Mass) {
   // Yet another helper function
   const fptype _pi = 3.14159265359;
@@ -525,10 +528,9 @@ __device__ fptype dFun (double s, double daug2Mass, double daug3Mass) {
   // Helper function used in Gronau-Sakurai
   const fptype _pi = 3.14159265359;
   double sm   = daug2Mass + daug3Mass;
-  double sm24 = sm*sm/4.0;
-  double m    = sqrt(s);
-  double k_m2 = twoBodyCMmom(s, daug2Mass, daug3Mass);
- 
+  double sm24 = sm*sm/4.0; // average daughter mass squared
+  double m    = sqrt(s); // nominal resonance mass
+  double k_m2 = twoBodyCMmom(s, daug2Mass, daug3Mass); // this is the nominal momentum
   double val = 3.0/_pi * sm24/pow(k_m2, 2) * log((m + 2*k_m2)/sm) + m/(2*_pi*k_m2) - sm24*m/(_pi * pow(k_m2, 3));
   return val;
 }
@@ -541,7 +543,8 @@ __device__ fptype fsFun (double s, double m2, double gam, double daug2Mass, doub
    
   double f     = gam * m2 / POW(k_Am2, 3);
   f           *= (POW(k_s, 2) * (hFun(s, daug2Mass, daug3Mass) - hFun(m2, daug2Mass, daug3Mass)) + (m2 - s) * pow(k_Am2, 2) * dh_dsFun(m2, daug2Mass, daug3Mass));
- 
+  // dh_dsFun is the h' function of the original paper
+
   return f;
 }
 
@@ -554,6 +557,7 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   fptype mother_meson_radius    = functorConstants[indices[1]+5];
 
   fptype resmass                = cudaArray[indices[2]];
+  fptype resmassSq              = resmass*resmass;
   fptype reswidth               = cudaArray[indices[3]];
   unsigned int spin             = indices[4];
   unsigned int cyclic_index     = indices[5]; 
@@ -563,26 +567,28 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   fptype daugBMass = (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass); // of the resonance
   fptype frFactor = 1;
 
-  resmass *= resmass; 
   // Calculate momentum of the two daughters in the resonance rest frame; note symmetry under interchange (dm1 <-> dm2). 
   fptype measureDaughterMoms = twoBodyCMmom(rMassSq, daugAMass, daugBMass);
-  fptype nominalDaughterMoms = twoBodyCMmom(resmass, daugAMass, daugBMass);
+  fptype nominalDaughterMoms = twoBodyCMmom(resmassSq, daugAMass, daugBMass);
 
-  if (0 != spin) {
+  if (0 != spin)
+  {
     frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
     frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius); 
   }
+
+  fptype runningwidth = reswidth * frFactor * (resmass/SQRT(rMassSq)) * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin+1.0);
   
-  // Implement Gro-Sak:
+  // Implement Gou-Sak:
+  fptype D = (1.0 + dFun(resmassSq, daugAMass, daugBMass)*reswidth/resmass);
+  fptype E = resmassSq - rMassSq + fsFun(rMassSq, resmassSq, reswidth, daugAMass, daugBMass);
+  fptype F = resmass * runningwidth;
+  //SQRT(resmass) * reswidth * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin + 1) * frFactor;
 
-  fptype D = (1.0 + dFun(resmass, daugAMass, daugBMass) * reswidth/SQRT(resmass));
-  fptype E = resmass - rMassSq + fsFun(rMassSq, resmass, reswidth, daugAMass, daugBMass);
-  fptype F = SQRT(resmass) * reswidth * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin + 1) * frFactor;
+  D /= (E*E + F*F);
+  devcomplex<fptype> retur(D*E, D*F);
 
-  D       /= (E*E + F*F);
-  devcomplex<fptype> retur(D*E, D*F); // Dropping F_D=1
-
-  // Don't want the F_D penetration factor in the mass-dependent width
+  // Didn't want the F_D penetration factor in the mass-dependent width, but we do want it in the overall spin factor
   if(0 != spin)
   {
     fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
@@ -592,7 +598,6 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
 
   retur *= SQRT(frFactor);
   retur *= spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index);
-
   return retur; 
 }
 
@@ -772,7 +777,7 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(registerParameter(mass));
   pindices.push_back(registerParameter(width)); 
   pindices.push_back(sp);
-  pindices.push_back(cyc); 
+  pindices.push_back(cyc);
 
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_GOUSAK, sizeof(void*));
   initialise(pindices); 
