@@ -2,15 +2,6 @@
 #include <complex>
 using std::complex;
 
-template <typename T> __host__ complex<T> makecomplex(T a, T b)
-{
-#ifdef USE_POLAR_AMPLITUDES
-  return complex<T>(a*COS(b*PHASE_CONVERSION_FACTOR), a*SIN(b*PHASE_CONVERSION_FACTOR));
-#else
-  return complex<T>(a, b);
-#endif
-}
-
 const int resonanceOffset_DP = 4; // Offset of the first resonance into the parameter index array 
 // Offset is number of parameters, constant index, number of resonances (not calculable 
 // from nP because we don't know what the efficiency might need), and cache index. Efficiency 

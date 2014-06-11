@@ -2,8 +2,10 @@
 #define DEVCOMPLEX_HH
 
 #include "GlobalCudaDefines.hh"
+#include <complex>
+using std::complex;
 
-#define USE_POLAR_AMPLITUDES 1
+//#define USE_POLAR_AMPLITUDES 1
 #define USE_PHASES_IN_DEGREES 1
 #ifdef USE_PHASES_IN_DEGREES
 // this is pi/180
@@ -70,6 +72,8 @@ template <typename T> struct devcomplex {
   }
 
  HOST_STRING EXEC_TARGET T abs2 () {return real*real + imag*imag;}
+
+ HOST_STRING EXEC_TARGET T arg () { return atan2(imag, real); }
 };
 
 template <typename T> HOST_STRING EXEC_TARGET devcomplex<T> operator+ (const devcomplex<T>& one, const devcomplex<T>& other) {
@@ -131,6 +135,15 @@ template <typename T> HOST_STRING EXEC_TARGET devcomplex<T> makedevcomplex(T a, 
   return devcomplex<T>(a*COS(b*PHASE_CONVERSION_FACTOR), a*SIN(b*PHASE_CONVERSION_FACTOR));
 #else
   return devcomplex<T>(a, b);
+#endif
+}
+
+template <typename T> __host__ complex<T> makecomplex(T a, T b)
+{
+#ifdef USE_POLAR_AMPLITUDES
+    return complex<T>(a*COS(b*PHASE_CONVERSION_FACTOR), a*SIN(b*PHASE_CONVERSION_FACTOR));
+#else
+      return complex<T>(a, b);
 #endif
 }
 
