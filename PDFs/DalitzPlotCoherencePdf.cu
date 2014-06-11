@@ -73,17 +73,18 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
   // These should be what pdfa and pdfb get as 'indices'
   //
   unsigned int
-    pdfa_index(indices[1]),
-    pdfb_index(indices[3]),
+    &pdfa_index(indices[1]),
+    &pdfb_index(indices[3]),
     *pdfa_indices(paramIndices + pdfa_index),
     *pdfb_indices(paramIndices + pdfb_index),
-    cacheToUse(indices[6]),
-    nResA(pdfa_indices[2]),
-    nResB(pdfb_indices[2]),
-    flag(evt[indices[indices[0] + 2 + 2]] + 0.5);
+    &cacheToUse(indices[6]),
+    &nResA(pdfa_indices[2]),
+    &nResB(pdfb_indices[2]),
+    &numflagpairs(indices[9]),
+    evtnum(evt[indices[indices[0] + 2 + 2]] + 0.5);
   fptype
-    coherence_constraint(p[indices[7]]),
-    coherence_error(p[indices[8]]);
+    &coherence_constraint(p[indices[7]]),
+    &coherence_error(p[indices[8]]);
 
   devcomplex<fptype> coherence;
   for(unsigned int i = 0; i < nResA; ++i)
@@ -116,23 +117,41 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
   coherence *= SQRT(normalisationFactors[pdfa_index] * normalisationFactors[pdfb_index]);
  
   fptype ret(1.0);
-  if(flag == DalitzPlotCoherencePdf::GAUSSIAN_AMPLITUDE_CONSTRAINT)
+  bool stilllooking(true);
+  for(unsigned int nflag = 0; nflag < numflagpairs && stilllooking; ++nflag)
   {
-    fptype coherence_norm(norm(coherence));
-    ret = EXP(-(coherence_norm - coherence_constraint)*(coherence_norm - coherence_constraint)/(2.0*coherence_error*coherence_error))*invRootPi/(root2*coherence_error);
+    unsigned int
+      &pair_evtnum(indices[10 + nflag*2 + 0]),
+      &pair_flagval(indices[10+ nflag*2 + 1]);
+    if(evtnum == pair_evtnum)
+    {
+      if(pair_flagval == DalitzPlotCoherencePdf::GAUSSIAN_AMPLITUDE_CONSTRAINT)
+      {
+        fptype coherence_norm(norm(coherence));
+        ret = EXP(-(coherence_norm - coherence_constraint)*(coherence_norm - coherence_constraint)/(2.0*coherence_error*coherence_error))*invRootPi/(root2*coherence_error);
+      }
+      else if(pair_flagval == DalitzPlotCoherencePdf::RAW_AMPLITUDE_VALUE)
+      {
+        ret = norm(coherence);
+      }
+      else if(pair_flagval == DalitzPlotCoherencePdf::RAW_PHASE_VALUE)
+      {
+        ret = coherence.arg();
+      }
+      else
+      {
+        printf("DalitzPlotCoherencePdf: don't know how to interpret flag %d for event %d (from %f)\n", pair_flagval, pair_evtnum, evt[indices[indices[0] + 2 + 2]]);
+      }
+      stilllooking = false;
+    }
   }
-  else if(flag == DalitzPlotCoherencePdf::RAW_AMPLITUDE_VALUE)
+
+  if(stilllooking)
   {
-    ret = norm(coherence);
+    printf("DalitzPlotCoherencePdf: couldn't figure out what we're supposed to be doing for event %d (from %f)\n", evtnum, evt[indices[indices[0] + 2 + 2]]);
   }
-  else if(flag == DalitzPlotCoherencePdf::RAW_PHASE_VALUE)
-  {
-    ret = coherence.arg();
-  }
-  else
-  {
-    printf("DalitzPlotCoherencePdf: got an invalid behavour flag %d (from %f)\n", flag, evt[indices[indices[0] + 2 + 2]]);
-  }
+
+  printf("DalitzPlotCoherencePdf: calculated coherence = (%f, %f). nResA = %d, nResB = %d\n", norm(coherence), coherence.arg(), nResA, nResB);
 
   return ret; 
 }
@@ -143,12 +162,13 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
     std::string n, 
     Variable* m12, 
     Variable* m13, 
-    Variable* flag,
+    Variable* evtnum,
     Variable* coherence_constraint,
     Variable* coherence_error,
     DalitzPlotPdf *pdfa_,
     DalitzPlotPdf *pdfb_,
-    GooPdf* efficiency)
+    GooPdf* efficiency,
+    const evtNumFlagPairVec &flags)
   : GooPdf(0, n) 
   , _m12(m12)
   , _m13(m13)
@@ -165,14 +185,11 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
 {
   registerObservable(_m12);
   registerObservable(_m13);
-  registerObservable(flag);
+  registerObservable(evtnum);
   pdfab[0] = pdfa;
   pdfab[1] = pdfb;
 
   std::vector<unsigned int> pindices;
-  // pindices.push_back(registerConstants(6));
-
-  //pindices.push_back(decayInfo->resonances.size()); 
   static int cacheCount = 0;
   cacheToUse = cacheCount++;
 
@@ -185,6 +202,12 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   pindices.push_back(cacheToUse);
   pindices.push_back(registerParameter(coherence_constraint));
   pindices.push_back(registerParameter(coherence_error));
+  pindices.push_back(flags.size());
+  for(evtNumFlagPairVec::const_iterator flag_iter = flags.begin(); flag_iter != flags.end(); flag_iter++)
+  {
+    pindices.push_back(flag_iter->first); // event number
+    pindices.push_back(flag_iter->second); // flag; implicit enum -> integer conversion
+  }
   components.push_back(efficiency); // I guess this is needed...
 
   GET_FUNCTION_ADDR(ptr_to_DalitzPlotCoherencePdf);
