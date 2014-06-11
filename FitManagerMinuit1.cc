@@ -38,9 +38,14 @@ void FitManager::setupMinuit () {
   minuit->SetFCN(FitFun); 
 }
 
-void FitManager::fit(FitAlgorithm algo)
+void FitManager::fit(FitAlgorithm algo, Int_t strategy)
 {
   setupMinuit();
+  
+  double arglist[] = { strategy };
+  int ierflg;
+  minuit->mnexcm("SET STR", arglist, 1, ierflg);
+
   switch(algo)
   {
     case MIGRAD:

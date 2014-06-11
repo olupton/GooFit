@@ -20,7 +20,7 @@ public:
   void setupMinuit ();
   void runSeek();
   void runMigrad (); 
-  void fit (FitAlgorithm algo = MIGRAD);
+  void fit (FitAlgorithm algo = MIGRAD, Int_t strategy = 2);
   TMinuit* getMinuitObject () {return minuit;} 
   void getMinuitValues () const;
   void getMinosErrors() const;
