@@ -10,12 +10,14 @@ class SpecialResonanceCoherenceIntegrator;
   
 class DalitzPlotCoherencePdf : public GooPdf {
 public:
-  DalitzPlotCoherencePdf(std::string n, Variable* m12, Variable* m13, DalitzPlotPdf *pdfa, DalitzPlotPdf *pdfb, GooPdf *eff);
+  DalitzPlotCoherencePdf(std::string n, Variable* m12, Variable* m13, Variable *flag, Variable *coherence_constraint, Variable *coherence_error, DalitzPlotPdf *pdfa, DalitzPlotPdf *pdfb, GooPdf *eff);
   // Note that 'efficiency' refers to anything which depends on (m12, m13) and multiplies the 
   // coherent sum. The caching method requires that it be done this way or the ProdPdf
   // normalisation will get *really* confused and give wrong answers. 
 
   __host__ virtual fptype normalise () const;
+  __host__ void copyIntegralsToHost ();
+  enum PdfFlag { GAUSSIAN_AMPLITUDE_CONSTRAINT = 0, RAW_AMPLITUDE_VALUE, RAW_PHASE_VALUE };
 protected:
 
 private:
@@ -24,10 +26,13 @@ private:
   DalitzPlotPdf *pdfa, *pdfb;
   Variable *_m12, *_m13;
   fptype* dalitzNormRange; 
+  unsigned int cacheToUse, nResA, nResB;
 
   // Following variables are useful if masses and widths, involved in difficult BW calculation, 
   // change infrequently while amplitudes, only used in adding BW results together, change rapidly.
-  devcomplex<fptype>*** integrals; // Caches the integrals of the BW waves for each combination of resonances. 
+  devcomplex<fptype>** host_integrals;
+  DEVICE_VECTOR<devcomplex<fptype> > *integrals;
+  //std::vector<std::vector<devcomplex<fptype> > > host_integrals;
 
   bool** redoIntegral;
   SpecialResonanceCoherenceIntegrator*** integrators;
