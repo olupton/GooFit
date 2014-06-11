@@ -1,21 +1,10 @@
 #include "DalitzPlotPdf.hh"
-#include <complex>
-using std::complex;
-
-const int resonanceOffset_DP = 4; // Offset of the first resonance into the parameter index array 
-// Offset is number of parameters, constant index, number of resonances (not calculable 
-// from nP because we don't know what the efficiency might need), and cache index. Efficiency 
-// parameters are after the resonance information. 
 
 // The function of this array is to hold all the cached waves; specific 
 // waves are recalculated when the corresponding resonance mass or width 
 // changes. Note that in a multithread environment each thread needs its
 // own cache, hence the '10'. Ten threads should be enough for anyone! 
 MEM_DEVICE devcomplex<fptype>* cResonances[10]; 
-
-EXEC_TARGET inline int parIndexFromResIndex_DP (int resIndex) {
-  return resonanceOffset_DP + resIndex*resonanceSize; 
-}
 
 EXEC_TARGET devcomplex<fptype> device_DalitzPlot_calcIntegrals (fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) {
   // Calculates BW_i(m12, m13) * BW_j^*(m12, m13). 
@@ -316,6 +305,11 @@ SpecialResonanceIntegrator::SpecialResonanceIntegrator (int pIdx, unsigned int r
   , parameters(pIdx) 
 {}
 
+EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const
+{
+    return device_DalitzPlot_calcIntegrals(m12, m13, res_i, res_j, p, indices);
+}
+
 EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::operator () (thrust::tuple<int, fptype*> t) const {
   // Bin index, base address [lower, upper, numbins] 
   // Notice that this is basically MetricTaker::operator (binned) with the special-case knowledge
@@ -341,7 +335,7 @@ EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::operator () (thrust::
   binCenterM13        += lowerBoundM13; 
 
   unsigned int* indices = paramIndices + parameters;   
-  devcomplex<fptype> ret = device_DalitzPlot_calcIntegrals(binCenterM12, binCenterM13, resonance_i, resonance_j, cudaArray, indices); 
+  devcomplex<fptype> ret = devicefunction(binCenterM12, binCenterM13, resonance_i, resonance_j, cudaArray, indices); 
 
   fptype fakeEvt[10]; // Need room for many observables in case m12 or m13 were assigned a high index in an event-weighted fit. 
   fakeEvt[indices[indices[0] + 2 + 0]] = binCenterM12;

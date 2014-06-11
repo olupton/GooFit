@@ -21,6 +21,7 @@ public:
   __host__ std::vector<std::vector<fptype> > getFitFractions();
   __host__ void setForceIntegrals (bool f = true) {forceRedoIntegrals = f;}
   __host__ const DecayInfo* getDecayInfo() const { return decayInfo; };
+  __host__ DecayInfo* getDecayInfo() { return decayInfo; };
   __host__ DEVICE_VECTOR<devcomplex<fptype> >* getCachedWaves() { return cachedWaves; }
 
 protected:
@@ -51,8 +52,8 @@ public:
   // Class used to calculate integrals of terms BW_i * BW_j^*. 
   SpecialResonanceIntegrator (int pIdx, unsigned int ri, unsigned int rj);
   EXEC_TARGET devcomplex<fptype> operator () (thrust::tuple<int, fptype*> t) const;
-private:
-
+protected:
+  EXEC_TARGET devcomplex<fptype> devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const;
   unsigned int resonance_i;
   unsigned int resonance_j; 
   unsigned int parameters;
@@ -70,6 +71,15 @@ private:
   unsigned int parameters;
 }; 
 
+const int resonanceOffset_DP = 4; // Offset of the first resonance into the parameter index array
+// Offset is number of parameters, constant index, number of resonances (not calculable
+// from nP because we don't know what the efficiency might need), and cache index. Efficiency
+// parameters are after the resonance information.
+//
+EXEC_TARGET inline int parIndexFromResIndex_DP (int resIndex)
+{
+  return resonanceOffset_DP + resIndex*resonanceSize;
+}
 
 #endif
 
