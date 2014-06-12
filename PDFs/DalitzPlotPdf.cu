@@ -173,6 +173,7 @@ __host__ void DalitzPlotPdf::setDataSize (unsigned int dataSize, unsigned int ev
 }
 
 __host__ fptype DalitzPlotPdf::normalise () const {
+  //std::cout << "DalitzPlotPdf::normalise(" << getName() << ")" << std::endl;
   recursiveSetNormalisation(1); // Not going to normalise efficiency, 
   // so set normalisation factor to 1 so it doesn't get multiplied by zero. 
   // Copy at this time to ensure that the SpecialResonanceCalculators, which need the efficiency, 
@@ -307,7 +308,13 @@ SpecialResonanceIntegrator::SpecialResonanceIntegrator (int pIdx, unsigned int r
 
 EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const
 {
-    return device_DalitzPlot_calcIntegrals(m12, m13, res_i, res_j, p, indices);
+  //printf("SpecialResonanceIntegrator::devicefunction()\n");
+  return device_DalitzPlot_calcIntegrals(m12, m13, res_i, res_j, p, indices);
+}
+
+EXEC_TARGET const char* SpecialResonanceIntegrator::whoami() const
+{
+  return NULL;//"SpecialResonanceIntegrator";
 }
 
 EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::operator () (thrust::tuple<int, fptype*> t) const {
@@ -335,7 +342,7 @@ EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::operator () (thrust::
   binCenterM13        += lowerBoundM13; 
 
   unsigned int* indices = paramIndices + parameters;   
-  devcomplex<fptype> ret = devicefunction(binCenterM12, binCenterM13, resonance_i, resonance_j, cudaArray, indices); 
+  devcomplex<fptype> ret = this->devicefunction(binCenterM12, binCenterM13, resonance_i, resonance_j, cudaArray, indices); 
 
   fptype fakeEvt[10]; // Need room for many observables in case m12 or m13 were assigned a high index in an event-weighted fit. 
   fakeEvt[indices[indices[0] + 2 + 0]] = binCenterM12;
@@ -347,7 +354,12 @@ EXEC_TARGET devcomplex<fptype> SpecialResonanceIntegrator::operator () (thrust::
   // Multiplication by eff, not sqrt(eff), is correct:
   // These complex numbers will not be squared when they
   // go into the integrals. They've been squared already,
-  // as it were. 
+  // as it were.
+  //if(this->whoami())
+  //{
+  //  printf("%s: numResonances = %d, effFunctionIdx = %d, ret/eff = %f + %fi, eff = %f\n", this->whoami(), numResonances, effFunctionIdx, ret.real, ret.imag, eff);
+  //}
+  
   ret *= eff;
   return ret; 
 }

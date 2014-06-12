@@ -217,10 +217,18 @@ __host__ double GooPdf::sumOfNll (int numVars) const {
   double dummy = 0;
 
   //if (host_callnumber >= 2) abortWithCudaPrintFlush(__FILE__, __LINE__, getName() + " debug abort", this); 
-  thrust::counting_iterator<int> eventIndex(0); 
-  return thrust::transform_reduce(thrust::make_zip_iterator(thrust::make_tuple(eventIndex, arrayAddress, eventSize)),
-				  thrust::make_zip_iterator(thrust::make_tuple(eventIndex + numEntries, arrayAddress, eventSize)),
-				  *logger, dummy, cudaPlus);   
+  thrust::counting_iterator<int> eventIndex(0);
+  try
+  {
+    return thrust::transform_reduce(thrust::make_zip_iterator(thrust::make_tuple(eventIndex, arrayAddress, eventSize)),
+		  		  thrust::make_zip_iterator(thrust::make_tuple(eventIndex + numEntries, arrayAddress, eventSize)),
+			  	  *logger, dummy, cudaPlus);   
+  }
+  catch(thrust::system_error &e)
+  {
+    std::cerr << "Exception thrown in sumOfNll: " << e.what() << std::endl;
+    exit(-1);
+  }
 }
 
 __host__ double GooPdf::calculateNLL () const {
@@ -403,19 +411,35 @@ __host__ fptype GooPdf::normalise () const {
   thrust::constant_iterator<fptype*> arrayAddress(normRanges); 
   thrust::constant_iterator<int> eventSize(observables.size());
   thrust::counting_iterator<int> binIndex(0); 
-  fptype sum = thrust::transform_reduce(thrust::make_zip_iterator(thrust::make_tuple(binIndex, eventSize, arrayAddress)),
-					thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins, eventSize, arrayAddress)),
-					*logger, dummy, cudaPlus); 
+  try
+  {
+    fptype sum = thrust::transform_reduce(
+        thrust::make_zip_iterator(thrust::make_tuple(binIndex,              eventSize, arrayAddress)),
+		  	thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins,  eventSize, arrayAddress)),
+			  *logger,
+        dummy,
+        cudaPlus
+        ); 
  
-  if (isnan(sum)) {
-    abortWithCudaPrintFlush(__FILE__, __LINE__, getName() + " NaN in normalisation", this); 
-  }
-  else if (0 >= sum) { 
-    abortWithCudaPrintFlush(__FILE__, __LINE__, "Non-positive normalisation", this); 
-  }
+    if (isnan(sum)) {
+      abortWithCudaPrintFlush(__FILE__, __LINE__, getName() + " NaN in normalisation", this); 
+    }
+    else if (0 >= sum) { 
+      abortWithCudaPrintFlush(__FILE__, __LINE__, "Non-positive normalisation", this); 
+    }
 
-  ret *= sum;
-
+    ret *= sum;
+  }
+  catch(thrust::system_error &e)
+  {
+    std::cerr << "Exception thrown in GooPdf::normalise(): " << e.what() << std::endl;
+    std::cerr << "totalBins = " << totalBins << ", observables.size() = " << observables.size() << ", normRanges = " << normRanges << std::endl;
+    for(std::size_t oindex = 0; oindex < observables.size(); ++oindex)
+    {
+      std::cerr << oindex << " (min,max,bins) = (" << normRanges[3*oindex + 0] << ", " << normRanges[3*oindex + 1] << ", " << normRanges[3*oindex + 2] << ")" << std::endl;
+    }
+    exit(-1);                
+  }
 
   if (0 == ret) abortWithCudaPrintFlush(__FILE__, __LINE__, "Zero integral"); 
   host_normalisation[parameters] = 1.0/ret;

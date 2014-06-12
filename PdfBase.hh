@@ -80,8 +80,10 @@ public:
     return tmp;
   }
 
-  __host__ bool parametersChanged () const; 
-  __host__ void storeParameters () const;
+  __host__ bool parametersChanged (fptype *cache) const; 
+  __host__ fptype* storeParameters (fptype *cache) const;
+  __host__ bool parametersChanged() const;
+  __host__ void storeParameters() const;
 
   __host__ obsIter obsBegin () {return observables.begin();}
   __host__ obsIter obsEnd   () {return observables.end();} 

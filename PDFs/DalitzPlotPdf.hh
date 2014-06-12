@@ -53,7 +53,8 @@ public:
   SpecialResonanceIntegrator (int pIdx, unsigned int ri, unsigned int rj);
   EXEC_TARGET devcomplex<fptype> operator () (thrust::tuple<int, fptype*> t) const;
 protected:
-  EXEC_TARGET devcomplex<fptype> devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const;
+  EXEC_TARGET virtual devcomplex<fptype> devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const;
+  EXEC_TARGET virtual const char* whoami() const;
   unsigned int resonance_i;
   unsigned int resonance_j; 
   unsigned int parameters;

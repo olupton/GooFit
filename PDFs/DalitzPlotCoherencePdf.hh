@@ -31,13 +31,13 @@ public:
   // normalisation will get *really* confused and give wrong answers. 
 
   __host__ virtual fptype normalise () const;
-  __host__ void copyIntegralsToHost ();
 protected:
 
 private:
   typedef std::vector<DalitzPlotPdf*> DPPvec;
   DPPvec pdfab;
   DalitzPlotPdf *pdfa, *pdfb;
+  GooPdf *eff;
   Variable *_m12, *_m13;
   fptype* dalitzNormRange; 
   unsigned int cacheToUse, nResA, nResB;
@@ -45,6 +45,7 @@ private:
   // Following variables are useful if masses and widths, involved in difficult BW calculation, 
   // change infrequently while amplitudes, only used in adding BW results together, change rapidly.
   devcomplex<fptype>** host_integrals;
+  fptype ***param_cache;
   DEVICE_VECTOR<devcomplex<fptype> > *integrals;
   //std::vector<std::vector<devcomplex<fptype> > > host_integrals;
 
@@ -57,7 +58,8 @@ class SpecialResonanceCoherenceIntegrator : public SpecialResonanceIntegrator
 public:
   // Class used to calculate integrals of terms BW_i * BW_j^*. 
   SpecialResonanceCoherenceIntegrator (int pIdx, unsigned int ri, unsigned int rj);
-  EXEC_TARGET devcomplex<fptype> devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const;
+  EXEC_TARGET virtual devcomplex<fptype> devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const;
+  EXEC_TARGET virtual const char* whoami() const;
 }; 
 
 #endif

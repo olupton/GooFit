@@ -130,28 +130,42 @@ __host__ void PdfBase::setIntegrationFineness (int i) {
   generateNormRange(); 
 }
 
-__host__ bool PdfBase::parametersChanged () const {
-  if (!cachedParams) return true; 
+__host__ bool PdfBase::parametersChanged() const
+{
+  return parametersChanged(cachedParams);
+}
+
+__host__ bool PdfBase::parametersChanged (fptype *cache) const {
+  if (!cache)
+    return true; 
 
   parCont params;
   getParameters(params); 
   int counter = 0; 
   for (parIter v = params.begin(); v != params.end(); ++v) {
-    if (cachedParams[counter++] != host_params[(*v)->index]) return true;
+    if (cache[counter++] != host_params[(*v)->index])
+      return true;
   }
 
   return false;
 }
 
-__host__ void PdfBase::storeParameters () const {
+__host__ void PdfBase::storeParameters () const
+{
+  cachedParams = storeParameters(cachedParams);
+}
+
+__host__ fptype* PdfBase::storeParameters (fptype *cache) const {
   parCont params;
   getParameters(params); 
-  if (!cachedParams) cachedParams = new fptype[params.size()]; 
+  if (!cache)
+    cache = new fptype[params.size()]; 
 
   int counter = 0; 
   for (parIter v = params.begin(); v != params.end(); ++v) {
-    cachedParams[counter++] = host_params[(*v)->index];
+    cache[counter++] = host_params[(*v)->index];
   }
+  return cache;
 }
  
 void dummySynch () {}

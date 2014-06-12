@@ -63,6 +63,8 @@ EXEC_TARGET devcomplex<fptype> device_DalitzCoherence_calcIntegrals (fptype m12,
   unsigned int params_j = pdfb_indices[parameter_j+3];
   ret *= getResonanceAmplitude(m12, m13, m23, functn_j, params_j);
 
+  //printf("motherMass_a = %f, motherMass_b = %f, m12 = %f, m13 = %f, ret = %f + %fi\n", motherMass_a, motherMass_b, m12, m13, ret.real, ret.imag);
+
   return ret; 
 }
 
@@ -86,6 +88,9 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
     &coherence_constraint(p[indices[7]]),
     &coherence_error(p[indices[8]]);
 
+  //printf("pdfa_index = %d, pdfb_index = %d, cacheToUse = %d, nResA = %d, nResB = %d, numflagpairs = %d, evtnum = %d, coherence_constraint = %f, coherence_error = %f\n",
+  //    pdfa_index, pdfb_index, cacheToUse, nResA, nResB, numflagpairs, evtnum, coherence_constraint, coherence_error);
+
   devcomplex<fptype> coherence;
   for(unsigned int i = 0; i < nResA; ++i)
   {
@@ -100,10 +105,13 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
         amp_imag_i(p[pdfa_indices[paramIndex_i+1]]), // real and imaginary parts
         amp_real_j(p[pdfb_indices[paramIndex_j+0]]),
         amp_imag_j(p[pdfb_indices[paramIndex_j+1]]);
+      //printf("i = %d, j = %d, paramIndex_i = %d, paramIndex_j = %d, integral_index = %d, amp_real_i = %f, amp_imag_j = %f, amp_real_j = %f, amp_imag_j = %f\n",
+      //    i, j, paramIndex_i, paramIndex_j, integral_index, amp_real_i, amp_imag_i, amp_real_j, amp_imag_j);
       devcomplex<fptype>
         amp_i(makedevcomplex(amp_real_i, amp_imag_i)),
         amp_j(makedevcomplex(amp_real_j, amp_imag_j)),
         cached_integral(device_integrals[cacheToUse][integral_index]);
+      //printf("cached_integral = %f + i%f\n", cached_integral.real, cached_integral.imag);
       coherence += amp_i * amp_j * cached_integral;
     }
   }
@@ -114,7 +122,9 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
   // normalisation factors
   // Doing this relies on ALL the normalisation factors being copied to the device before
   // ANY of the PDFs are evaluated on the data points.
-  coherence *= SQRT(normalisationFactors[pdfa_index] * normalisationFactors[pdfb_index]);
+  fptype coherence_inversedenominator(SQRT(normalisationFactors[pdfa_index] * normalisationFactors[pdfb_index]));
+  //printf("Scaling coherence (%f, %f) by %f to normalise\n", norm(coherence), coherence.arg(), coherence_inversedenominator);
+  coherence *= coherence_inversedenominator;
  
   fptype ret(1.0);
   bool stilllooking(true);
@@ -151,7 +161,7 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
     printf("DalitzPlotCoherencePdf: couldn't figure out what we're supposed to be doing for event %d (from %f)\n", evtnum, evt[indices[indices[0] + 2 + 2]]);
   }
 
-  printf("DalitzPlotCoherencePdf: calculated coherence = (%f, %f). nResA = %d, nResB = %d\n", norm(coherence), coherence.arg(), nResA, nResB);
+  //printf("DalitzPlotCoherencePdf: calculated coherence = (%f, %f). nResA = %d, nResB = %d\n", norm(coherence), coherence.arg(), nResA, nResB);
 
   return ret; 
 }
@@ -174,6 +184,7 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   , _m13(m13)
   , pdfa(pdfa_)
   , pdfb(pdfb_)
+  , eff(efficiency)
   , pdfab(2, NULL)
   , dalitzNormRange(0)
   , integrals(0)
@@ -182,6 +193,7 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   , nResA(pdfa->getDecayInfo()->resonances.size())
   , nResB(pdfb->getDecayInfo()->resonances.size())
   , host_integrals(0)
+  , param_cache(0)
 {
   registerObservable(_m12);
   registerObservable(_m13);
@@ -209,18 +221,26 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
     pindices.push_back(flag_iter->second); // flag; implicit enum -> integer conversion
   }
   components.push_back(efficiency); // I guess this is needed...
+  components.push_back(pdfa);
+  components.push_back(pdfb);
 
   GET_FUNCTION_ADDR(ptr_to_DalitzPlotCoherencePdf);
   initialise(pindices);
 
   // We need to keep track with which resonances are changing in the 2 PDFs
   redoIntegral = new bool*[pdfab.size()]; // Flag which of the terms need re-calculating
+  param_cache = new fptype**[pdfab.size()];
 
   for(std::size_t i = 0; i < pdfab.size(); ++i)
   {
-    redoIntegral[i] = new bool[nResA];
-    for(std::size_t j = 0; j < nResB; ++j)
+    unsigned int nResAB(pdfab[i]->getDecayInfo()->resonances.size());
+    redoIntegral[i] = new bool[nResAB];
+    param_cache[i] = new fptype*[nResAB];
+    for(std::size_t j = 0; j < nResAB; ++j)
+    {
       redoIntegral[i][j] = true;
+      param_cache[i][j] = NULL;
+    }
   }
 
   integrals    = new DEVICE_VECTOR<devcomplex<fptype> >(nResA * nResB);
@@ -245,12 +265,17 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   addSpecialMask(PdfBase::ForceSeparateNorm); 
 }
 
-__host__ fptype DalitzPlotCoherencePdf::normalise () const {
-  recursiveSetNormalisation(1); // Not going to normalise efficiency, 
+__host__ fptype DalitzPlotCoherencePdf::normalise () const
+{
+  //std::cout << "DalitzPlotCoherencePdf::normalise(" << getName() << ")" << std::endl;
+  eff->recursiveSetNormalisation(1.0);
+  //recursiveSetNormalisation(1); // Not going to normalise efficiency, 
   // so set normalisation factor to 1 so it doesn't get multiplied by zero. 
   // Copy at this time to ensure that the SpecialResonanceCalculators, which need the efficiency, 
   // don't get zeroes through multiplying by the normFactor. 
-  MEMCPY_TO_SYMBOL(normalisationFactors, host_normalisation, totalParams*sizeof(fptype), 0, cudaMemcpyHostToDevice); 
+  MEMCPY_TO_SYMBOL(normalisationFactors, host_normalisation, totalParams*sizeof(fptype), 0, cudaMemcpyHostToDevice);
+  pdfa->normalise();
+  pdfb->normalise();
 
   int totalBins = _m12->numbins * _m13->numbins;
   if (!dalitzNormRange) {
@@ -273,10 +298,9 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const {
     for (unsigned int i = 0; i < decayInfo->resonances.size(); ++i)
     {
       //redoIntegral[ab][i] = forceRedoIntegrals; 
-      if(!(decayInfo->resonances[i]->parametersChanged()))
-        continue;
-      redoIntegral[ab][i] = true; 
-      decayInfo->resonances[i]->storeParameters();
+      redoIntegral[ab][i] = decayInfo->resonances[i]->parametersChanged(param_cache[ab][i]);
+      if(redoIntegral[ab][i])
+        param_cache[ab][i] = decayInfo->resonances[i]->storeParameters(param_cache[ab][i]);
     }
   }
 
@@ -290,21 +314,30 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const {
   fptype binSizeFactor(
       ((_m12->upperlimit - _m12->lowerlimit) / _m12->numbins)
       * ((_m13->upperlimit - _m13->lowerlimit) / _m13->numbins));
+  //std::cout << "binSizeFactor = " << binSizeFactor << std::endl;
 
   for(int i = 0; i < nResA; ++i)
   {
     for (int j = 0; j < nResB; ++j)
     {
       if((!redoIntegral[0][i]) && (!redoIntegral[1][j]))
+      {
+        //std::cout << "Skipping evaluation of the " << i << ", " << j << " integral" << std::endl;
         continue; 
-      devcomplex<fptype> dummy(0, 0);
+      }
+
+      devcomplex<fptype> dummy(0, 0), &result(host_integrals[i][j]);
       thrust::plus<devcomplex<fptype> > complexSum;
       std::size_t index(i*pdfb->getDecayInfo()->resonances.size() + j);
-      (*integrals)[index] = thrust::transform_reduce(thrust::make_zip_iterator(thrust::make_tuple(binIndex, arrayAddress)),
-						      thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins, arrayAddress)),
-						      *(integrators[i][j]), 
-						      dummy, 
-						      complexSum) * binSizeFactor;
+      result = thrust::transform_reduce(
+          thrust::make_zip_iterator(thrust::make_tuple(binIndex, arrayAddress)),
+          thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins, arrayAddress)),
+          *(integrators[i][j]), 
+          dummy, 
+          complexSum);
+      result *= binSizeFactor;
+      (*integrals)[index] = result;
+      //std::cout << "Calculated " << i << ", " << j << " integral (" << result.real << " + " << result.imag << "i)" << std::endl;
     }
   }
 
@@ -312,19 +345,19 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const {
   return 1.0;
 }
 
-__host__ void DalitzPlotCoherencePdf::copyIntegralsToHost ()
-{
-  for(int i = 0; i < nResA; ++i)
-    for (int j = 0; j < nResB; ++j)
-      host_integrals[i][j] = (*integrals)[i*nResB + j];
-}
-
 SpecialResonanceCoherenceIntegrator::SpecialResonanceCoherenceIntegrator (int pIdx, unsigned int ri, unsigned int rj) 
   : SpecialResonanceIntegrator(pIdx, ri, rj)
 {
 }
 
+EXEC_TARGET const char* SpecialResonanceCoherenceIntegrator::whoami() const
+{
+    return "SpecialResonanceCoherenceIntegrator";
+}
+
 EXEC_TARGET devcomplex<fptype> SpecialResonanceCoherenceIntegrator::devicefunction(fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) const
 {
+  //printf("SpecialResonanceCoherenceIntegrator::devicefunction(%f, %f, %d, %d, p, indices)\n",
+  //    m12, m13, res_i, res_j);
   return device_DalitzCoherence_calcIntegrals(m12, m13, res_i, res_j, p, indices);
 }

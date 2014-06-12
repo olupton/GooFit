@@ -74,6 +74,7 @@ void abortWithCudaPrintFlush (std::string file, int line);
 #ifdef DOUBLES
 #define root2 1.4142135623730951
 #define invRootPi 0.5641895835477563
+#define Pi 3.14159265358979323846264338327950288419716939937510
 
 typedef double fptype; 
 // Double math functions
@@ -97,7 +98,7 @@ typedef float fptype;
 
 #define root2 1.4142135623730951f
 #define invRootPi 0.5641895835477563f
-
+#define Pi 3.14159265358979323846264338327950288419716939937510f
 
 // Float math functions
 #define ATAN2 atan2f
