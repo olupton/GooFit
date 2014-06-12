@@ -2,6 +2,7 @@
 #include <complex>
 
 MEM_DEVICE devcomplex<fptype>* device_integrals[10];
+MEM_DEVICE devcomplex<fptype>* device_coherence[10];
 
 EXEC_TARGET unsigned int get1Dindex(unsigned int i, unsigned int j, unsigned int nResA, unsigned int nResB)
 {
@@ -88,9 +89,6 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
     &coherence_constraint(p[indices[7]]),
     &coherence_error(p[indices[8]]);
 
-  //printf("pdfa_index = %d, pdfb_index = %d, cacheToUse = %d, nResA = %d, nResB = %d, numflagpairs = %d, evtnum = %d, coherence_constraint = %f, coherence_error = %f\n",
-  //    pdfa_index, pdfb_index, cacheToUse, nResA, nResB, numflagpairs, evtnum, coherence_constraint, coherence_error);
-
   devcomplex<fptype> coherence;
   for(unsigned int i = 0; i < nResA; ++i)
   {
@@ -139,14 +137,17 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
       {
         fptype coherence_norm(norm(coherence));
         ret = EXP(-(coherence_norm - coherence_constraint)*(coherence_norm - coherence_constraint)/(2.0*coherence_error*coherence_error))*invRootPi/(root2*coherence_error);
+        //device_coherence[cacheToUse][0] = coherence;
       }
       else if(pair_flagval == DalitzPlotCoherencePdf::RAW_AMPLITUDE_VALUE)
       {
         ret = norm(coherence);
       }
-      else if(pair_flagval == DalitzPlotCoherencePdf::RAW_PHASE_VALUE)
+      else if(pair_flagval == DalitzPlotCoherencePdf::RAW_PHASE_VALUE or pair_flagval == DalitzPlotCoherencePdf::RAW_PHASE_VALUE_AND_CACHE)
       {
         ret = coherence.arg();
+        if(pair_flagval == DalitzPlotCoherencePdf::RAW_PHASE_VALUE_AND_CACHE)
+          device_coherence[cacheToUse][0] = coherence;
       }
       else
       {
@@ -161,7 +162,8 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
     printf("DalitzPlotCoherencePdf: couldn't figure out what we're supposed to be doing for event %d (from %f)\n", evtnum, evt[indices[indices[0] + 2 + 2]]);
   }
 
-  //printf("DalitzPlotCoherencePdf: calculated coherence = (%f, %f). nResA = %d, nResB = %d\n", norm(coherence), coherence.arg(), nResA, nResB);
+  //printf("DalitzPlotCoherencePdf: calculated coherence = %f + %fi. nResA = %d, nResB = %d, pdfa_index = %d, pdfb_index = %d, cacheToUse = %d, numflagpairs = %d, evtnum = %d, coherence_constraint = %f, coherence_error = %f\n",
+  //    coherence.real, coherence.imag, nResA, nResB, pdfa_index, pdfb_index, cacheToUse, numflagpairs, evtnum, coherence_constraint, coherence_error);
 
   return ret; 
 }
@@ -261,6 +263,10 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   void *dummy(thrust::raw_pointer_cast(integrals->data()));
   MEMCPY_TO_SYMBOL(device_integrals, &dummy, sizeof(devcomplex<fptype>*), cacheToUse*sizeof(devcomplex<fptype>*), cudaMemcpyHostToDevice);
 
+  coherences = new DEVICE_VECTOR<devcomplex<fptype> >(1); // just 1 value, the coherence itself, for now
+  dummy = thrust::raw_pointer_cast(coherences->data());
+  MEMCPY_TO_SYMBOL(device_coherence, &dummy, sizeof(devcomplex<fptype>*), cacheToUse*sizeof(devcomplex<fptype>*), cudaMemcpyHostToDevice);
+
   // I think this stops GooFit trying to be too clever.
   addSpecialMask(PdfBase::ForceSeparateNorm); 
 }
@@ -268,7 +274,7 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
 __host__ fptype DalitzPlotCoherencePdf::normalise () const
 {
   //std::cout << "DalitzPlotCoherencePdf::normalise(" << getName() << ")" << std::endl;
-  eff->recursiveSetNormalisation(1.0);
+  recursiveSetNormalisation(1.0);
   //recursiveSetNormalisation(1); // Not going to normalise efficiency, 
   // so set normalisation factor to 1 so it doesn't get multiplied by zero. 
   // Copy at this time to ensure that the SpecialResonanceCalculators, which need the efficiency, 
@@ -343,6 +349,34 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const
 
   host_normalisation[parameters] = 1.0;
   return 1.0;
+}
+
+std::complex<fptype> DalitzPlotCoherencePdf::getCoherence() const
+{
+  devcomplex<fptype> coherence = (*coherences)[0]; // device->host copy -- this should be the last value calculated device-side
+  // for an event number mapped to an appropriate flag
+  //std::cout << "DalitzPlotCoherencePdf::getCoherence() retrieved " << coherence.real << " + " << coherence.imag << "i" << std::endl;
+  std::complex<fptype> ret(coherence.real, coherence.imag);
+
+  normalise(); // make sure the host_integrals are populated
+  std::complex<fptype> host_coherence;
+  for(unsigned int i = 0; i < nResA; ++i)
+  {
+    unsigned int param_i(pdfa->getParameterIndex() + resonanceOffset_DP + resonanceSize*i);
+    std::complex<fptype> amp_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]));
+    for(unsigned int j = 0; j < nResB; ++j)
+    {
+      unsigned int param_j(pdfb->getParameterIndex() + resonanceOffset_DP + resonanceSize*j);
+      std::complex<fptype> amp_j(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]]));
+      host_coherence += amp_i * amp_j * std::complex<fptype>(host_integrals[i][j].real, host_integrals[i][j].imag);
+    }
+  }
+
+  fptype scale(host_normalisation[pdfa->getParameterIndex()] * host_normalisation[pdfb->getParameterIndex()]);
+  host_coherence *= sqrt(scale);
+
+  std::cout << "Retrieved: " << ret.real() << " + " << ret.imag() << "i, calculated: "<< host_coherence.real() << " + " << host_coherence.imag() << "i" << std::endl;
+  return host_coherence;
 }
 
 SpecialResonanceCoherenceIntegrator::SpecialResonanceCoherenceIntegrator (int pIdx, unsigned int ri, unsigned int rj) 

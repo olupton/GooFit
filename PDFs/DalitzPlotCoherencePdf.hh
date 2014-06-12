@@ -11,7 +11,7 @@ class SpecialResonanceCoherenceIntegrator;
   
 class DalitzPlotCoherencePdf : public GooPdf {
 public:
-  enum PdfFlag { GAUSSIAN_AMPLITUDE_CONSTRAINT = 0, RAW_AMPLITUDE_VALUE, RAW_PHASE_VALUE };
+  enum PdfFlag { GAUSSIAN_AMPLITUDE_CONSTRAINT = 0, RAW_AMPLITUDE_VALUE, RAW_PHASE_VALUE, RAW_PHASE_VALUE_AND_CACHE };
   typedef std::pair<unsigned int, PdfFlag> evtNumFlagPair;
   typedef std::vector<evtNumFlagPair> evtNumFlagPairVec;
   DalitzPlotCoherencePdf(
@@ -31,6 +31,7 @@ public:
   // normalisation will get *really* confused and give wrong answers. 
 
   __host__ virtual fptype normalise () const;
+  std::complex<fptype> getCoherence() const;
 protected:
 
 private:
@@ -46,7 +47,9 @@ private:
   // change infrequently while amplitudes, only used in adding BW results together, change rapidly.
   devcomplex<fptype>** host_integrals;
   fptype ***param_cache;
-  DEVICE_VECTOR<devcomplex<fptype> > *integrals;
+  DEVICE_VECTOR<devcomplex<fptype> >
+    *integrals,
+    *coherences;
   //std::vector<std::vector<devcomplex<fptype> > > host_integrals;
 
   bool** redoIntegral;

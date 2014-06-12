@@ -15,9 +15,9 @@ EXEC_TARGET fptype device_PhaseDiffConstraint (fptype* evt, fptype* p, unsigned 
 
   // We want to know how far (PDFaValue - PDFbValue) is from 'mean'
   // in units of 'sigma'
-  if(diff > 2.0*Pi)
+  if(diff > Pi)
     diff -= 2.0*Pi;
-  if(diff < -2.0*Pi)
+  if(diff < Pi)
     diff += 2.0*Pi;
   diff /= sigma;
 
@@ -55,6 +55,8 @@ __host__ PhaseDifferenceConstraintPdf::PhaseDifferenceConstraintPdf(const std::s
 
 __host__ fptype PhaseDifferenceConstraintPdf::normalise () const
 {
-  recursiveSetNormalisation(1.0); 
+  host_normalisation[parameters] = 1.0;
+  for(std::vector<PdfBase*>::const_iterator c_iter = components.begin(); c_iter != components.end(); c_iter++)
+    (*c_iter)->normalise();
   return 1.0;
 }
