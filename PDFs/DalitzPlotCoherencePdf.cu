@@ -196,6 +196,7 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   , nResB(pdfb->getDecayInfo()->resonances.size())
   , host_integrals(0)
   , param_cache(0)
+  , forceNewIntegrals(true)
 {
   registerObservable(_m12);
   registerObservable(_m13);
@@ -326,7 +327,7 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const
   {
     for (int j = 0; j < nResB; ++j)
     {
-      if((!redoIntegral[0][i]) && (!redoIntegral[1][j]))
+      if((!redoIntegral[0][i]) && (!redoIntegral[1][j]) && !forceNewIntegrals)
       {
         //std::cout << "Skipping evaluation of the " << i << ", " << j << " integral" << std::endl;
         continue; 
@@ -347,17 +348,20 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const
     }
   }
 
+  forceNewIntegrals = false;
   host_normalisation[parameters] = 1.0;
   return 1.0;
 }
 
-std::complex<fptype> DalitzPlotCoherencePdf::getCoherence() const
+std::complex<fptype> DalitzPlotCoherencePdf::getCoherence()
 {
   devcomplex<fptype> coherence = (*coherences)[0]; // device->host copy -- this should be the last value calculated device-side
   // for an event number mapped to an appropriate flag
   //std::cout << "DalitzPlotCoherencePdf::getCoherence() retrieved " << coherence.real << " + " << coherence.imag << "i" << std::endl;
   std::complex<fptype> ret(coherence.real, coherence.imag);
 
+  forceNewIntegrals = true;
+  copyParams();
   normalise(); // make sure the host_integrals are populated
   std::complex<fptype> host_coherence;
   for(unsigned int i = 0; i < nResA; ++i)
@@ -368,15 +372,29 @@ std::complex<fptype> DalitzPlotCoherencePdf::getCoherence() const
     {
       unsigned int param_j(pdfb->getParameterIndex() + resonanceOffset_DP + resonanceSize*j);
       std::complex<fptype> amp_j(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]]));
-      host_coherence += amp_i * amp_j * std::complex<fptype>(host_integrals[i][j].real, host_integrals[i][j].imag);
+      std::complex<fptype> newterm(amp_i * amp_j * std::complex<fptype>(host_integrals[i][j].real, host_integrals[i][j].imag));
+      //std::cout << "Adding: " << newterm.real() << " + " << newterm.imag() << "i" << std::endl;
+      host_coherence += newterm;
     }
   }
 
   fptype scale(host_normalisation[pdfa->getParameterIndex()] * host_normalisation[pdfb->getParameterIndex()]);
   host_coherence *= sqrt(scale);
 
-  std::cout << "Retrieved: " << ret.real() << " + " << ret.imag() << "i, calculated: "<< host_coherence.real() << " + " << host_coherence.imag() << "i" << std::endl;
+  std::cout << getName() << ": Retrieved: " << ret.real() << " + " << ret.imag() << "i, calculated: "<< host_coherence.real() << " + " << host_coherence.imag() << "i" << std::endl;
   return host_coherence;
+}
+
+void DalitzPlotCoherencePdf::setComponentDataSizes(unsigned int dataSize, unsigned int evtSize)
+{
+  for(DPPvec::iterator comp_iter = pdfab.begin(); comp_iter != pdfab.end(); comp_iter++)
+  {
+    DalitzPlotPdf *dpp(*comp_iter);
+    if(evtSize)
+      dpp->setDataSize(dataSize, evtSize);
+    else
+      dpp->setDataSize(dataSize);
+  }
 }
 
 SpecialResonanceCoherenceIntegrator::SpecialResonanceCoherenceIntegrator (int pIdx, unsigned int ri, unsigned int rj) 

@@ -31,7 +31,8 @@ public:
   // normalisation will get *really* confused and give wrong answers. 
 
   __host__ virtual fptype normalise () const;
-  std::complex<fptype> getCoherence() const;
+  std::complex<fptype> getCoherence();
+  void setComponentDataSizes(unsigned int dataSize, unsigned int evtsize = 0);
 protected:
 
 private:
@@ -42,6 +43,7 @@ private:
   Variable *_m12, *_m13;
   fptype* dalitzNormRange; 
   unsigned int cacheToUse, nResA, nResB;
+  mutable bool forceNewIntegrals;
 
   // Following variables are useful if masses and widths, involved in difficult BW calculation, 
   // change infrequently while amplitudes, only used in adding BW results together, change rapidly.
