@@ -45,5 +45,6 @@ struct Constant : Indexable {
   ~Constant () {}
 }; 
 
+std::ostream& operator<<(std::ostream &oss, const Variable &var);
 
 #endif
