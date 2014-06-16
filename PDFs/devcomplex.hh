@@ -147,4 +147,6 @@ template <typename T> __host__ complex<T> makecomplex(T a, T b)
 #endif
 }
 
+typedef devcomplex<fptype> fpcomplex;
+
 #endif
