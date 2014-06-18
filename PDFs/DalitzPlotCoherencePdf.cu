@@ -250,7 +250,7 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
   host_integrals=new devcomplex<fptype>*[nResA];
   integrators  = new SpecialResonanceCoherenceIntegrator**[nResA];
 
-  for (int i = 0; i < nResB; ++i)
+  for (int i = 0; i < nResA; ++i)
   {
     integrators[i]    = new SpecialResonanceCoherenceIntegrator*[nResB];
     host_integrals[i] = new devcomplex<fptype>[nResB];
@@ -275,7 +275,7 @@ __host__ DalitzPlotCoherencePdf::DalitzPlotCoherencePdf (
 __host__ fptype DalitzPlotCoherencePdf::normalise () const
 {
   //std::cout << "DalitzPlotCoherencePdf::normalise(" << getName() << ")" << std::endl;
-  recursiveSetNormalisation(1.0);
+  eff->recursiveSetNormalisation(1.0);
   //recursiveSetNormalisation(1); // Not going to normalise efficiency, 
   // so set normalisation factor to 1 so it doesn't get multiplied by zero. 
   // Copy at this time to ensure that the SpecialResonanceCalculators, which need the efficiency, 
@@ -335,7 +335,7 @@ __host__ fptype DalitzPlotCoherencePdf::normalise () const
 
       devcomplex<fptype> dummy(0, 0), &result(host_integrals[i][j]);
       thrust::plus<devcomplex<fptype> > complexSum;
-      std::size_t index(i*pdfb->getDecayInfo()->resonances.size() + j);
+      std::size_t index(i*nResB + j);
       result = thrust::transform_reduce(
           thrust::make_zip_iterator(thrust::make_tuple(binIndex, arrayAddress)),
           thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins, arrayAddress)),
