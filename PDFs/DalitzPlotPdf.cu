@@ -229,11 +229,28 @@ __host__ fptype DalitzPlotPdf::normalise () const {
       if ((!redoIntegral[i]) && (!redoIntegral[j])) continue; 
       devcomplex<fptype> dummy(0, 0);
       thrust::plus<devcomplex<fptype> > complexSum; 
-      (*(integrals[i][j])) = thrust::transform_reduce(thrust::make_zip_iterator(thrust::make_tuple(binIndex, arrayAddress)),
-						      thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins, arrayAddress)),
-						      *(integrators[i][j]), 
-						      dummy, 
-						      complexSum); 
+      try
+      {
+        (*(integrals[i][j])) = thrust::transform_reduce(thrust::make_zip_iterator(thrust::make_tuple(binIndex, arrayAddress)),
+				  		      thrust::make_zip_iterator(thrust::make_tuple(binIndex + totalBins, arrayAddress)),
+					  	      *(integrators[i][j]), 
+						        dummy, 
+						        complexSum); 
+      }
+      catch(thrust::system_error &e)
+      {
+        std::cerr << "Exception thrown in DalitzPlotPdf::normalise(): " << e.what() << std::endl;
+        std::cerr << "dalitzNormRange = " << dalitzNormRange << std::endl;
+        std::cerr << "totalBins = " << totalBins << std::endl;
+        std::cerr << "(i, j) = (" << i << ", " << j << ")" << std::endl;
+        std::cerr << "integrals[i][j] = " << integrals[i][j] << std::endl;
+        exit(-1);
+      }
+      catch(...)
+      {
+        std::cerr << "Some unknown exception thrown in DalitzPlotPdf::normalise()" << std::endl;
+        exit(-1);
+      }
     }
   }      
 
