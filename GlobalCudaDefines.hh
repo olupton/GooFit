@@ -87,6 +87,7 @@ typedef double fptype;
 #define EXP exp
 #define FABS fabs
 #define FMOD fmod
+#define FMAX fmax
 #define LOG log
 #define MODF modf
 #define SIN sin
@@ -110,6 +111,7 @@ typedef float fptype;
 #define EXP expf
 #define FABS fabsf
 #define FMOD fmodf
+#define FMAX fmaxf
 #define LOG logf
 #define MODF modff
 #define SIN sinf
