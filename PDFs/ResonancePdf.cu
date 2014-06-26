@@ -1,22 +1,39 @@
 #include "ResonancePdf.hh" 
 
-__device__ fptype twoBodyCMmom (double rMassSq, fptype d1m, fptype d2m) {
+__device__ fptype twoBodyCMmomSq(fptype rMassSq, fptype d1m, fptype d2m)
+{
+  // Define something to return the momentum squared so we can defer
+  // deciding what to do with unphysical momenta...
+  return 0.25 * rMassSq * (1.0 - ((d1m+d2m)*(d1m+d2m) / rMassSq)) * (1.0 - ((d1m - d2m)*(d1m - d2m)/rMassSq));
+}
+
+__device__ fptype twoBodyCMmom (fptype rMassSq, fptype d1m, fptype d2m) {
   // For A -> B + C, calculate momentum of B and C in rest frame of A. 
   // PDG 38.16.
 
-  fptype kin1 = 1 - POW(d1m+d2m, 2) / rMassSq;
-  if (kin1 > 0)
-    kin1 = SQRT(kin1);
-  else
-    kin1 = 1;
+  //fptype kin1 = 1 - POW(d1m+d2m, 2) / rMassSq;
+  //if (kin1 > 0)
+  //  kin1 = SQRT(kin1);
+  //else
+  //  kin1 = 1;
   
-  fptype kin2 = 1 - POW(d1m-d2m, 2) / rMassSq;
-  if (kin2 > 0)
-    kin2 = SQRT(kin2);
-  else
-    kin2 = 1;
+  //fptype kin2 = 1 - POW(d1m-d2m, 2) / rMassSq;
+  //if (kin2 > 0)
+  //  kin2 = SQRT(kin2);
+  //else
+  //  kin2 = 1;
 
-  return 0.5*SQRT(rMassSq)*kin1*kin2; 
+  //return 0.5*SQRT(rMassSq)*kin1*kin2; 
+  return SQRT(twoBodyCMmomSq(rMassSq, d1m, d2m));
+}
+
+__device__ fptype bachelorMomSq(fptype otherMass, fptype motherMass, fptype bachelorMass)
+{
+  fptype
+    motherMassSq(motherMass*motherMass),
+    massSumSq((otherMass + bachelorMass)*(otherMass + bachelorMass)),
+    massDiffSq((otherMass- bachelorMass)*(otherMass - bachelorMass));
+  return 0.25 * (motherMassSq - massSumSq) * (motherMassSq - massDiffSq) / (otherMass * otherMass);
 }
 
 // For D -> (R -> AB)C calculate momentum of C (and D) in rest frame of R (A+B)
@@ -26,23 +43,30 @@ __device__ fptype bachelorMom(fptype otherMass, fptype motherMass, fptype bachel
   // This will sometimes get called with masses which are kinematically forbidden (i.e. m_R + m_C > m_D)
   // In these cases we just want to return something of the right order of magnitude.
   // The way in which we do this is just copied from the twoBodyCMmom() function above.
-  fptype
-    kin1(1.0 - POW((otherMass + bachelorMass)/motherMass, 2.0)),
-    kin2(1.0 - POW((otherMass - bachelorMass)/motherMass, 2.0));
-  if(kin1 >= 0.0)
-    kin1 = SQRT(kin1);
-  else
-    kin1 = 1.0;
+  //fptype
+  //kin1(1.0 - POW((otherMass + bachelorMass)/motherMass, 2.0)),
+  //  kin2(1.0 - POW((otherMass - bachelorMass)/motherMass, 2.0));
+  //if(kin1 >= 0.0)
+  //  kin1 = SQRT(kin1);
+  //else
+  //  kin1 = SQRT(-kin1);//kin1 = 1.0;
+  //kin1 = SQRT(FMAX(0.0, kin1));//(FABS(kin1));
   
-  if(kin2 >= 0.0)
-    kin2 = SQRT(kin2);
-  else
-    kin2 = 1.0;
+  // BIG FAT WARNING
+  // try and emulate what MINT does (did) here, by using the absolute value of 'kin2' if it is negative
+  // all choices here are quite arbitrary....
+  //if(kin2 >= 0.0)
+  //  kin2 = SQRT(kin2);
+  //else
+  //  kin2 = SQRT(-kin2);//1.0;
+  //kin2 = SQRT(FMAX(0.0, kin2));
   
-  return 0.5 * POW(motherMass, 2.0) * kin1 * kin2 / otherMass;
+  //return FMAX(1e-6, 0.5 * POW(motherMass, 2.0) * kin1 * kin2 / otherMass);
+  return SQRT(bachelorMomSq(otherMass, motherMass, bachelorMass));
 }
 
-__device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius) {
+__device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius)
+{
   fptype square = mRadius*mRadius*cmmom*cmmom;
   fptype dfsq = 1 + square; // This accounts for spin 1
   if (2 == spin)
@@ -52,8 +76,36 @@ __device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius) {
   return dfsq; 
 }
 
-__device__ fptype spinFactor (unsigned int spin, fptype motherMass, fptype daug1Mass, fptype daug2Mass, fptype daug3Mass, fptype m12, fptype m13, fptype m23, unsigned int cyclic_index) {
-  if (0 == spin) return 1; // Should not cause branching since every thread evaluates the same resonance at the same time. 
+// For spin 1:
+// (p_D + p_C)_mu( -g_munu + P_mu P_nu * massFactor)(p_B - p_A)_nu where P = p_A + p_B
+// = -(p_A + p_C + p_B + p_C).(p_B + p_C - p_A - p_C) + massFactor*(p_D + p_C).(p_D - p_C)*(p_A + p_B).(p_B - p_A)
+// = -(s_BC - s_AC) + massFactor*(m_D^2 - m_C^2)*(m_B^2 - m_A^2)
+// = -{ (s_BC - s_AC) + massFactor*(m_D^2 - m_C^2)*(m_A^2 - m_B^2) }
+//
+// For spin 2:
+// (p_D + p_C)_mu(p_D + p_C)_nu T_mu,nu,alpha,beta (p_B - p_A)_alpha(p_B - p_A)_beta
+// where T_mu,nu,alpha,beta = (1/2)*(T_mu,alpha*T_nu,beta + T_mu,beta*T_nu,alpha) - (1/3)T_mu,nu*T_alpha,beta
+// and T_mu,nu = -g_mu,nu + massFactor*P_mu,P_nu
+__device__ fptype spinFactorABC(unsigned int spin, fptype motherMass, fptype _mA, fptype _mB, fptype _mC, fptype _mAB, fptype _mAC, fptype _mBC, fptype massFactor)
+{
+  if(spin == 0)
+    return 1.0;
+  fptype sFactor(-1.0);
+  sFactor *= ((_mBC - _mAC) + (massFactor*(motherMass*motherMass - _mC*_mC)*(_mA*_mA-_mB*_mB)));
+  if (2 == spin) {
+    sFactor *= sFactor;
+    fptype extraterm = ((_mAB-(2*motherMass*motherMass)-(2*_mC*_mC))+massFactor*pow((motherMass*motherMass-_mC*_mC),2));
+    extraterm *= ((_mAB-(2*_mA*_mA)-(2*_mB*_mB))+massFactor*pow((_mA*_mA-_mB*_mB),2));
+    extraterm /= 3;
+    sFactor -= extraterm;
+  }
+  return sFactor;
+}
+
+__device__ fptype spinFactor (unsigned int spin, fptype motherMass, fptype daug1Mass, fptype daug2Mass, fptype daug3Mass, fptype m12, fptype m13, fptype m23, unsigned int cyclic_index, fptype resMassSq, bool usenominal = true)
+{
+  if (0 == spin)
+    return 1.0; // Should not cause branching since every thread evaluates the same resonance at the same time. 
   /*
   // Copied from BdkDMixDalitzAmp
    
@@ -82,19 +134,8 @@ __device__ fptype spinFactor (unsigned int spin, fptype motherMass, fptype daug1
   fptype _mC = (PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
   fptype _mAC = (PAIR_12 == cyclic_index ? m13 : (PAIR_13 == cyclic_index ? m23 : m12)); 
   fptype _mBC = (PAIR_12 == cyclic_index ? m23 : (PAIR_13 == cyclic_index ? m12 : m13)); 
-  fptype _mAB = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23)); 
-
-  fptype massFactor = 1.0/_mAB;
-  fptype sFactor = -1; 
-  sFactor *= ((_mBC - _mAC) + (massFactor*(motherMass*motherMass - _mC*_mC)*(_mA*_mA-_mB*_mB)));
-  if (2 == spin) {
-    sFactor *= sFactor; 
-    fptype extraterm = ((_mAB-(2*motherMass*motherMass)-(2*_mC*_mC))+massFactor*pow((motherMass*motherMass-_mC*_mC),2));
-    extraterm *= ((_mAB-(2*_mA*_mA)-(2*_mB*_mB))+massFactor*pow((_mA*_mA-_mB*_mB),2));
-    extraterm /= 3;
-    sFactor -= extraterm;
-  }
-  return sFactor; 
+  fptype _mAB = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
+  return spinFactorABC(spin, motherMass, _mA, _mB, _mC, _mAB, _mAC, _mBC, usenominal ? 1.0/resMassSq : 1.0/_mAB);
 }
 
 __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsigned int* indices) {
@@ -108,7 +149,8 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   fptype resmass                = cudaArray[indices[2]];
   fptype reswidth               = cudaArray[indices[3]];
   unsigned int spin             = indices[4];
-  unsigned int cyclic_index     = indices[5]; 
+  unsigned int cyclic_index     = indices[5];
+  bool use_nominal_resmass      = indices[6];
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
   fptype frFactor = 1;
@@ -132,20 +174,24 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
  
   // RBW evaluation
   fptype A = (resmass - rMassSq); 
-  fptype B = resmass*reswidth * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin + 1) * frFactor / SQRT(rMassSq);
+  fptype prat(measureDaughterMoms / nominalDaughterMoms);
+  fptype B = resmass*reswidth * frFactor / SQRT(rMassSq);
+  for(unsigned int i = 0; i < ((2*spin) + 1); ++i)
+    B *= prat;
   fptype C = 1.0 / (A*A + B*B); 
-  devcomplex<fptype> ret(A*C, B*C); // Dropping F_D=1
+  devcomplex<fptype> ret(A*C, B*C);
+  // A + iB / (A^2 + B^2)
   
   // Don't want the F_D penetration factor in the mass-dependent width
   if(0 != spin)
   {
     fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
-    frFactor *= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
-    frFactor /= dampingFactorSquare(bachelorMom(SQRT(resmass), motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor *= dampingFactorSquare(SQRT(FABS(bachelorMomSq(SQRT(resmass), motherMass, bachelorMass))), spin, mother_meson_radius); // using nominal  mass
+    frFactor /= dampingFactorSquare(SQRT(FABS(bachelorMomSq(SQRT(rMassSq), motherMass, bachelorMass))), spin, mother_meson_radius); // using measured mass
   }
 
   ret *= SQRT(frFactor);
-  fptype spinF = spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index); 
+  fptype spinF = spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index, resmass, use_nominal_resmass); 
   ret *= spinF; 
 
   return ret; 
@@ -173,6 +219,14 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
 //
 // with some dimensional constants multiplying the second term
 // the use of the letter F is inheritied, B for background and N for nonresonant might both make sense...
+//
+// Update 20/06/2014 to try and match MINT more closely
+//
+// MINT seems to return (Lass2.C)
+//
+// (m_Kpi/q) * F*sin(phi_F + delta_F)*exp(i*(phi_F + delta_F)) + R*sin(delta_R) * exp(i*delta_R + 2*i*(delta_F + phi_F) + i*phi_R)
+//
+//
 __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned int* indices) {
   // use the BW implementation for the resonant part...
   devcomplex<fptype> BW_part(plainBW(m12, m13, m23, indices));
@@ -191,27 +245,30 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
   fptype lass_phi_f             = cudaArray[indices[8]];
   fptype lass_phi_r             = cudaArray[indices[9]];
   fptype lass_F                 = cudaArray[indices[10]];
-  
-  fptype q(twoBodyCMmom((PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23)),
+ 
+  fptype rMassSq((PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23)));
+  fptype q(twoBodyCMmom(rMassSq,
                         (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass),
                         (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
   fptype q0(twoBodyCMmom(resmass*resmass,
                          (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass),
                          (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
 
-  fptype delta_f(atan(2.0*lass_a*q/(2.0 + lass_a*lass_r*q*q)));
+  fptype delta_f(atan2(2.0*lass_a*q, 2.0 + (lass_a*lass_r*q*q)));
   fptype angle_combo(delta_f + lass_phi_f);
   
-  BW_part *= devcomplex<fptype>(cos(2.0*angle_combo), sin(2.0*angle_combo));
+  BW_part *= devcomplex<fptype>(cos((2.0*angle_combo) + lass_phi_r), sin(2.0*(angle_combo) + lass_phi_r));
+  BW_part *= reswidth * resmass * resmass / q0;
   
   devcomplex<fptype> nonres_part(lass_F * sin(angle_combo), 0);
-  angle_combo -= lass_phi_r;
   nonres_part *= devcomplex<fptype>(cos(angle_combo), sin(angle_combo));
+  //fptype rMass(SQRT((PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23))));
+  nonres_part *= SQRT(rMassSq) / q;
   // now correct for the way the other shapes are normalised
   // for whatever reason, Dalitz fitters seem to like dropping constants so that BW shapes have dimensions of inverse mass^2
   // but what we've just calculated is dimensionless
   // the magic quantity is, I think, this...
-  nonres_part *= q0 / (reswidth * resmass * resmass);
+  //nonres_part *= q0 / (reswidth * resmass * resmass);
   
   return BW_part + nonres_part;
 }
@@ -243,7 +300,7 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
                          (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass)));
   
   // This is the LASS phase shift
-  fptype delta_f(atan(2.0*lass_a*q/(2.0 + lass_a*lass_r*q*q)));
+  fptype delta_f(atan2(2.0*lass_a*q, 2.0 + lass_a*lass_r*q*q));
   
   // Calculate the running width
   fptype resrunwidth(reswidth * q * resmass / (q0 * SQRT(rMassSq)));
@@ -255,7 +312,7 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
   // we want to do this but with delta_r -> delta_r + delta_f, and then multiply the whole thing by a polynomial
   
   devcomplex<fptype> ret(cos(delta_r + delta_f), sin(delta_r + delta_f));
-  ret *= sin(delta_r + delta_f) * q0 * SQRT(rMassSq) / (reswidth * resmass * resmass * q);
+  ret *= sin(delta_r + delta_f) * /*q0*/ SQRT(rMassSq) / q;//(reswidth * resmass * resmass * q);
   
   fptype poly(1.0);
   
@@ -559,8 +616,9 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   fptype resmass                = cudaArray[indices[2]];
   fptype resmassSq              = resmass*resmass;
   fptype reswidth               = cudaArray[indices[3]];
-  unsigned int spin             = indices[4];
-  unsigned int cyclic_index     = indices[5]; 
+  unsigned int &spin            = indices[4];
+  unsigned int &cyclic_index    = indices[5]; 
+  unsigned int &use_nominal_mass= indices[6];
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
   fptype daugAMass = (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass); // These are the two daughters
@@ -592,12 +650,12 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   if(0 != spin)
   {
     fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
-    frFactor *= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
-    frFactor /= dampingFactorSquare(bachelorMom(SQRT(resmass), motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor *= dampingFactorSquare(bachelorMom(resmass, motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor /= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
   }
 
   retur *= SQRT(frFactor);
-  retur *= spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index);
+  retur *= spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index, resmassSq, use_nominal_mass);
   return retur; 
 }
 
@@ -630,7 +688,8 @@ ResonancePdf::ResonancePdf (string name,
 						Variable* mass, 
 						Variable* width, 
 						unsigned int sp, 
-						unsigned int cyc) 
+						unsigned int cyc,
+            bool useNominalMass) 
   : GooPdf(0, name)
   , amp_real(ar)
   , amp_imag(ai)
@@ -646,6 +705,7 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(registerParameter(width)); 
   pindices.push_back(sp);
   pindices.push_back(cyc); 
+  pindices.push_back(useNominalMass);
 
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_RBW, sizeof(void*));
   initialise(pindices); 
@@ -766,7 +826,8 @@ ResonancePdf::ResonancePdf (string name,
   unsigned int sp, 
   Variable* mass, 
 	Variable* width, 
-  unsigned int cyc) 
+  unsigned int cyc,
+  bool useNominalMass) 
 : GooPdf(0, name)
 , amp_real(ar)
 , amp_imag(ai)
@@ -778,6 +839,7 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(registerParameter(width)); 
   pindices.push_back(sp);
   pindices.push_back(cyc);
+  pindices.push_back(useNominalMass);
 
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_GOUSAK, sizeof(void*));
   initialise(pindices); 

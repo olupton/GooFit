@@ -17,7 +17,8 @@ public:
 			  Variable* mass, 
 			  Variable* width, 
 			  unsigned int sp, 
-			  unsigned int cyc);
+			  unsigned int cyc,
+        bool useNominalResMassInSpinFactor = false);
   
   enum CouplingTreatment { MULTIPLY_BY_NOMINAL_MASS = 0, SQUARE };
   enum WhichMeson { F = 0, A };
@@ -79,7 +80,8 @@ public:
 			  unsigned int sp,
 			  Variable* mass,
 			  Variable* width,
-			  unsigned int cyc);
+			  unsigned int cyc,
+        bool useNominalResMassInSpinFactor = false);
 
   // Nonresonant constructor
   ResonancePdf (string name, 
