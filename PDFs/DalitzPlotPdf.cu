@@ -269,6 +269,8 @@ __host__ fptype DalitzPlotPdf::normalise () const {
   }
 
   fptype ret = real(sumIntegral); // That complex number is a square, so it's fully real
+  if(imag(sumIntegral) > 1e-3*fabs(ret))
+    std::cout << "WARNING: in DalitzPlotPdf::normalise() then 'sumIntegral' should have been purely real, it was actually " << ret << " + " << imag(sumIntegral) << "i" << std::endl;
   double binSizeFactor = 1;
   binSizeFactor *= ((_m12->upperlimit - _m12->lowerlimit) / _m12->numbins);
   binSizeFactor *= ((_m13->upperlimit - _m13->lowerlimit) / _m13->numbins);
