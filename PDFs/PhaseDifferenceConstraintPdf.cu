@@ -17,7 +17,7 @@ EXEC_TARGET fptype device_PhaseDiffConstraint (fptype* evt, fptype* p, unsigned 
   // in units of 'sigma'
   if(diff > Pi)
     diff -= 2.0*Pi;
-  if(diff < Pi)
+  if(diff < -Pi)
     diff += 2.0*Pi;
   diff /= sigma;
 
