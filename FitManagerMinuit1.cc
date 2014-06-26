@@ -22,7 +22,8 @@ void FitManager::setupMinuit () {
   pdfPointer->getParameters(vars); 
 
   numPars = vars.size();
-  if (minuit) delete minuit;
+  if (minuit)
+    delete minuit;
   minuit = new TMinuit(numPars); 
   int maxIndex = 0; 
   int counter = 0; 
