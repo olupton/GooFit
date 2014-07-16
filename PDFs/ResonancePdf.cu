@@ -76,6 +76,28 @@ __device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius)
   return dfsq; 
 }
 
+__device__ fptype unNormalisedDampingFactorSquare(fptype measured_momentum, int spin, fptype meson_radius)
+{
+  if(spin == 0)
+    return 1.0; 
+  fptype
+    square(measured_momentum * measured_momentum * meson_radius * meson_radius),
+    ret(0.0);
+  if(spin == 1)
+    ret = 2.0 * square / (1.0 + square);
+  if(spin == 2)
+    ret = 13.0 * square * square / ( ((square - 3.0)*(square - 3.0)) + 9.0*square);
+  return ret;
+}
+
+__device__ fptype dampingFactorRatioSquare(fptype nummom, fptype denmom, int spin, fptype meson_radius, bool useNormalisedFactor)
+{
+  fptype ret(useNormalisedFactor ?
+      dampingFactorSquare(nummom, spin, meson_radius) / dampingFactorSquare(denmom, spin, meson_radius)
+      : unNormalisedDampingFactorSquare(denmom, spin, meson_radius));
+  return ret;
+}
+
 // For spin 1:
 // (p_D + p_C)_mu( -g_munu + P_mu P_nu * massFactor)(p_B - p_A)_nu where P = p_A + p_B
 // = -(p_A + p_C + p_B + p_C).(p_B + p_C - p_A - p_C) + massFactor*(p_D + p_C).(p_D - p_C)*(p_A + p_B).(p_B - p_A)
@@ -148,9 +170,10 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   
   fptype resmass                = cudaArray[indices[2]];
   fptype reswidth               = cudaArray[indices[3]];
-  unsigned int spin             = indices[4];
-  unsigned int cyclic_index     = indices[5];
-  bool use_nominal_resmass      = indices[6];
+  const unsigned int &spin             = indices[4];
+  const unsigned int &cyclic_index     = indices[5];
+  const unsigned int &use_nominal_resmass = indices[6];
+  const unsigned int &use_unnorm_dampingf = indices[7];
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
   fptype frFactor = 1;
@@ -167,10 +190,7 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   
 
   if (0 != spin)
-  {
-    frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
-    frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius);
-  }
+    frFactor = dampingFactorRatioSquare(nominalDaughterMoms, measureDaughterMoms, spin, meson_radius, use_unnorm_dampingf);
  
   // RBW evaluation
   fptype A = (resmass - rMassSq); 
@@ -186,8 +206,10 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   if(0 != spin)
   {
     fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
-    frFactor *= dampingFactorSquare(SQRT(FABS(bachelorMomSq(SQRT(resmass), motherMass, bachelorMass))), spin, mother_meson_radius); // using nominal  mass
-    frFactor /= dampingFactorSquare(SQRT(FABS(bachelorMomSq(SQRT(rMassSq), motherMass, bachelorMass))), spin, mother_meson_radius); // using measured mass
+    frFactor *= dampingFactorRatioSquare(
+        SQRT(FABS(bachelorMomSq(SQRT(resmass), motherMass, bachelorMass))),
+        SQRT(FABS(bachelorMomSq(SQRT(rMassSq), motherMass, bachelorMass))),
+        spin, mother_meson_radius, use_unnorm_dampingf); // using nominal/measured
   }
 
   ret *= SQRT(frFactor);
@@ -616,9 +638,10 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   fptype resmass                = cudaArray[indices[2]];
   fptype resmassSq              = resmass*resmass;
   fptype reswidth               = cudaArray[indices[3]];
-  unsigned int &spin            = indices[4];
-  unsigned int &cyclic_index    = indices[5]; 
-  unsigned int &use_nominal_mass= indices[6];
+  const unsigned int &spin            = indices[4];
+  const unsigned int &cyclic_index    = indices[5]; 
+  const unsigned int &use_nominal_mass= indices[6];
+  const unsigned int &use_unnorm_dampingf = indices[7];
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
   fptype daugAMass = (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass); // These are the two daughters
@@ -631,8 +654,11 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
 
   if (0 != spin)
   {
-    frFactor =  dampingFactorSquare(nominalDaughterMoms, spin, meson_radius);
-    frFactor /= dampingFactorSquare(measureDaughterMoms, spin, meson_radius); 
+    frFactor = dampingFactorRatioSquare(
+        nominalDaughterMoms,
+        measureDaughterMoms,
+        spin, meson_radius,
+        use_unnorm_dampingf);
   }
 
   fptype runningwidth = reswidth * frFactor * (resmass/SQRT(rMassSq)) * POW(measureDaughterMoms / nominalDaughterMoms, 2.0*spin+1.0);
@@ -650,8 +676,11 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   if(0 != spin)
   {
     fptype bachelorMass(PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
-    frFactor *= dampingFactorSquare(bachelorMom(resmass, motherMass, bachelorMass), spin, mother_meson_radius);
-    frFactor /= dampingFactorSquare(bachelorMom(SQRT(rMassSq), motherMass, bachelorMass), spin, mother_meson_radius);
+    frFactor *= dampingFactorRatioSquare(
+        bachelorMom(resmass, motherMass, bachelorMass),
+        bachelorMom(SQRT(rMassSq), motherMass, bachelorMass),
+        spin, mother_meson_radius,
+        use_unnorm_dampingf);
   }
 
   retur *= SQRT(frFactor);
@@ -689,7 +718,8 @@ ResonancePdf::ResonancePdf (string name,
 						Variable* width, 
 						unsigned int sp, 
 						unsigned int cyc,
-            bool useNominalMass) 
+                                                bool useNominalMass,
+                                                bool useUnNormalisedDampingFactors) 
   : GooPdf(0, name)
   , amp_real(ar)
   , amp_imag(ai)
@@ -706,6 +736,7 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(sp);
   pindices.push_back(cyc); 
   pindices.push_back(useNominalMass);
+  pindices.push_back(useUnNormalisedDampingFactors);
 
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_RBW, sizeof(void*));
   initialise(pindices); 
@@ -827,7 +858,8 @@ ResonancePdf::ResonancePdf (string name,
   Variable* mass, 
 	Variable* width, 
   unsigned int cyc,
-  bool useNominalMass) 
+  bool useNominalMass,
+  bool useUnNormalisedDampingFactors) 
 : GooPdf(0, name)
 , amp_real(ar)
 , amp_imag(ai)
@@ -840,6 +872,7 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(sp);
   pindices.push_back(cyc);
   pindices.push_back(useNominalMass);
+  pindices.push_back(useUnNormalisedDampingFactors);
 
   cudaMemcpyFromSymbol((void**) &host_fcn_ptr, ptr_to_GOUSAK, sizeof(void*));
   initialise(pindices); 
