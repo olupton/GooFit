@@ -26,7 +26,7 @@ DEFINEFLAGS += -DPROFILING=yes
 endif 
 
 ifeq ($(TARGET_OMP),)
-CXXFLAGS += -gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=sm_35 -g  #-G
+CXXFLAGS += -gencode=arch=compute_30,code=sm_30 -gencode=arch=compute_35,code=sm_35 -gencode=arch=compute_30,code=compute_30 -gencode=arch=compute_35,code=compute_35 -g #-G
 else
 DEFINEFLAGS += -fno-inline -fopenmp -DTHRUST_DEVICE_SYSTEM=THRUST_DEVICE_BACKEND_OMP
 LIBS += -lgomp
