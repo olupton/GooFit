@@ -78,6 +78,7 @@ __device__ fptype dampingFactorSquare (fptype cmmom, int spin, fptype mRadius)
 
 __device__ fptype unNormalisedDampingFactorSquare(fptype measured_momentum, int spin, fptype meson_radius)
 {
+  printf("WARNING: you are using an incomplete, untested damping factor implementation!\n");
   if(spin == 0)
     return 1.0; 
   fptype
@@ -90,12 +91,12 @@ __device__ fptype unNormalisedDampingFactorSquare(fptype measured_momentum, int 
   return ret;
 }
 
-__device__ fptype dampingFactorRatioSquare(fptype nummom, fptype denmom, int spin, fptype meson_radius, bool useNormalisedFactor)
+__device__ fptype dampingFactorRatioSquare(fptype nummom, fptype denmom, int spin, fptype meson_radius, bool useUnNormalisedFactor)
 {
-  fptype ret(useNormalisedFactor ?
-      dampingFactorSquare(nummom, spin, meson_radius) / dampingFactorSquare(denmom, spin, meson_radius)
-      : unNormalisedDampingFactorSquare(denmom, spin, meson_radius));
-  return ret;
+  if(useUnNormalisedFactor)
+    return unNormalisedDampingFactorSquare(denmom, spin, meson_radius);
+  else
+    return dampingFactorSquare(nummom, spin, meson_radius) / dampingFactorSquare(denmom, spin, meson_radius);
 }
 
 // For spin 1:
@@ -167,16 +168,18 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   fptype daug3Mass              = functorConstants[indices[1]+3];
   fptype meson_radius           = functorConstants[indices[1]+4];
   fptype mother_meson_radius    = functorConstants[indices[1]+5];
-  
+ 
   fptype resmass                = cudaArray[indices[2]];
   fptype reswidth               = cudaArray[indices[3]];
-  const unsigned int &spin             = indices[4];
-  const unsigned int &cyclic_index     = indices[5];
+  const unsigned int &spin                = indices[4];
+  const unsigned int &cyclic_index        = indices[5];
   const unsigned int &use_nominal_resmass = indices[6];
   const unsigned int &use_unnorm_dampingf = indices[7];
+  //printf("%.3f %.3f %.3f %.3f %.3f %.3f\n", motherMass, daug1Mass, daug2Mass, daug3Mass, meson_radius, mother_meson_radius);
+  //printf("%.3f %.3f %d %d %d %d\n", resmass, reswidth, spin, cyclic_index, use_nominal_resmass, use_unnorm_dampingf);
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
-  fptype frFactor = 1;
+  fptype frFactor(1.0);
 
   resmass *= resmass; 
   // Calculate momentum of the two daughters in the resonance rest frame; note symmetry under interchange (dm1 <-> dm2). 
@@ -185,7 +188,7 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
 					    (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
   fptype nominalDaughterMoms = twoBodyCMmom(resmass, 
 					    (PAIR_23 == cyclic_index ? daug2Mass : daug1Mass), 
-                                            (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
+              (PAIR_12 == cyclic_index ? daug2Mass : daug3Mass));
   
   
 
@@ -215,6 +218,11 @@ __device__ devcomplex<fptype> plainBW (fptype m12, fptype m13, fptype m23, unsig
   ret *= SQRT(frFactor);
   fptype spinF = spinFactor(spin, motherMass, daug1Mass, daug2Mass, daug3Mass, m12, m13, m23, cyclic_index, resmass, use_nominal_resmass); 
   ret *= spinF; 
+
+  //if(SQRT(resmass) < 0.900)
+  //{
+  //  printf("%.3f %.3f %.3f\n", frFactor, spinF, prat);
+  // }
 
   return ret; 
 }
@@ -260,13 +268,21 @@ __device__ devcomplex<fptype> lass(fptype m12, fptype m13, fptype m23, unsigned 
 
   fptype resmass                = cudaArray[indices[2]];
   fptype reswidth               = cudaArray[indices[3]];
-  unsigned int cyclic_index     = indices[5];
+  //const unsigned int &spin                = indices[4];
+  const unsigned int &cyclic_index        = indices[5];
+  //const unsigned int &use_nominal_resmass = indices[6];
+  //const unsigned int &use_unnorm_dampingf = indices[7];
+
   // extra LASS parameters
-  fptype lass_a                 = cudaArray[indices[6]];
-  fptype lass_r                 = cudaArray[indices[7]];
-  fptype lass_phi_f             = cudaArray[indices[8]];
-  fptype lass_phi_r             = cudaArray[indices[9]];
-  fptype lass_F                 = cudaArray[indices[10]];
+  fptype lass_a                 = cudaArray[indices[8]];
+  fptype lass_r                 = cudaArray[indices[9]];
+  fptype lass_phi_f             = cudaArray[indices[10]];
+  fptype lass_phi_r             = cudaArray[indices[11]];
+  fptype lass_F                 = cudaArray[indices[12]];
+
+  //printf("%.3f %.3f %.3f %.3f %.3f %d %.3f %.3f %.3f %.3f %.3f\n",
+  //    daug1Mass, daug2Mass, daug3Mass, resmass, reswidth,
+  //    cyclic_index, lass_a, lass_r, lass_phi_f, lass_phi_r, lass_F);
  
   fptype rMassSq((PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23)));
   fptype q(twoBodyCMmom(rMassSq,
@@ -638,9 +654,9 @@ __device__ devcomplex<fptype> gouSak (fptype m12, fptype m13, fptype m23, unsign
   fptype resmass                = cudaArray[indices[2]];
   fptype resmassSq              = resmass*resmass;
   fptype reswidth               = cudaArray[indices[3]];
-  const unsigned int &spin            = indices[4];
-  const unsigned int &cyclic_index    = indices[5]; 
-  const unsigned int &use_nominal_mass= indices[6];
+  const unsigned int &spin                = indices[4];
+  const unsigned int &cyclic_index        = indices[5]; 
+  const unsigned int &use_nominal_mass    = indices[6];
   const unsigned int &use_unnorm_dampingf = indices[7];
 
   fptype rMassSq = (PAIR_12 == cyclic_index ? m12 : (PAIR_13 == cyclic_index ? m13 : m23));
@@ -802,6 +818,8 @@ ResonancePdf::ResonancePdf (string name,
   pindices.push_back(registerParameter(width));
   pindices.push_back(sp);
   pindices.push_back(cyc);
+  pindices.push_back(0);// useNominalMass -- this lets us defer to plainBW()
+  pindices.push_back(0);// useUnNormalisedDampingFactors -- this lets us defer to plainBW()
   pindices.push_back(registerParameter(lass_a));
   pindices.push_back(registerParameter(lass_r));
   pindices.push_back(registerParameter(lass_phi_f));
