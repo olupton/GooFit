@@ -5,7 +5,7 @@
 #include <complex>
 using std::complex;
 
-//#define USE_POLAR_AMPLITUDES 1
+#define USE_POLAR_AMPLITUDES 1
 #define USE_PHASES_IN_DEGREES 1
 #ifdef USE_PHASES_IN_DEGREES
 // this is pi/180

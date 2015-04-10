@@ -4,7 +4,8 @@
 // waves are recalculated when the corresponding resonance mass or width 
 // changes. Note that in a multithread environment each thread needs its
 // own cache, hence the '10'. Ten threads should be enough for anyone! 
-MEM_DEVICE devcomplex<fptype>* cResonances[10]; 
+const int cResonancesMax = 20;
+MEM_DEVICE devcomplex<fptype>* cResonances[cResonancesMax]; 
 
 EXEC_TARGET devcomplex<fptype> device_DalitzPlot_calcIntegrals (fptype m12, fptype m13, int res_i, int res_j, fptype* p, unsigned int* indices) {
   // Calculates BW_i(m12, m13) * BW_j^*(m12, m13). 
@@ -115,7 +116,12 @@ __host__ DalitzPlotPdf::DalitzPlotPdf (std::string n,
 
   pindices.push_back(decayInfo->resonances.size()); 
   static int cacheCount = 0; 
-  cacheToUse = cacheCount++; 
+  cacheToUse = cacheCount++;
+  if(cacheToUse >= cResonancesMax)
+  {
+    std::cout << "ERROR: cResonancesMax is too low (" << cResonancesMax << ")!" << std::endl;
+    exit(-1);
+  }
   pindices.push_back(cacheToUse); 
 
   for (std::vector<ResonancePdf*>::iterator res = decayInfo->resonances.begin(); res != decayInfo->resonances.end(); ++res) {
