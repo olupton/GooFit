@@ -63,6 +63,7 @@ void FitManager::fit(FitAlgorithm algo, Int_t strategy)
 
 void FitManager::runMigrad () { 
   assert(minuit);
+  minuit->SetPrintLevel(2);
   host_callnumber = 0;
   if (0 < overrideCallLimit) {
     std::cout << "Calling MIGRAD with call limit " << overrideCallLimit << std::endl; 
