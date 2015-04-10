@@ -73,11 +73,14 @@ __host__ IncoherentSumPdf::IncoherentSumPdf (std::string n, Variable* m12, Varia
   pindices.push_back(cacheToUse); 
 
   for (std::vector<ResonancePdf*>::iterator res = decayInfo->resonances.begin(); res != decayInfo->resonances.end(); ++res) {
-    pindices.push_back(registerParameter((*res)->amp_real));
-    pindices.push_back(registerParameter((*res)->amp_real)); 
+    pindices.push_back(registerParameter((*res)->amp.real));
+    pindices.push_back(registerParameter((*res)->amp.real)); 
     // Not going to use amp_imag, but need a dummy index so the resonance size will be consistent.
     pindices.push_back((*res)->getFunctionIndex());
     pindices.push_back((*res)->getParameterIndex());
+    pindices.push_back(0); // TODO support real_del, imag_del, mode etc
+    pindices.push_back(0); // TODO 
+    pindices.push_back(0); // TODO
     (*res)->setConstantIndex(cIndex); 
     components.push_back(*res);
   }

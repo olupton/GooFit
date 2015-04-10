@@ -58,7 +58,7 @@ EXEC_TARGET fptype device_DalitzPlot (fptype* evt, fptype* p, unsigned int* indi
     //fptype amp_imag = p[indices[paramIndex+1]];
     
     // behaviour depends on compile flag, between cartesian and polar interpretation of parameters
-    devcomplex<fptype> amp(makedevcomplex(p[indices[paramIndex+0]], p[indices[paramIndex+1]]));
+    devcomplex<fptype> amp(makedevcomplex(p[indices[paramIndex+0]], p[indices[paramIndex+1]], p[indices[paramIndex+4]], p[indices[paramIndex+5]], indices[paramIndex+6]));
     
     devcomplex<fptype> matrixelement((cResonances[cacheToUse][evtNum*numResonances + i]).real,
 				     (cResonances[cacheToUse][evtNum*numResonances + i]).imag); 
@@ -119,10 +119,13 @@ __host__ DalitzPlotPdf::DalitzPlotPdf (std::string n,
   pindices.push_back(cacheToUse); 
 
   for (std::vector<ResonancePdf*>::iterator res = decayInfo->resonances.begin(); res != decayInfo->resonances.end(); ++res) {
-    pindices.push_back(registerParameter((*res)->amp_real));
-    pindices.push_back(registerParameter((*res)->amp_imag));
+    pindices.push_back(registerParameter((*res)->amp.real));
+    pindices.push_back(registerParameter((*res)->amp.imag));
     pindices.push_back((*res)->getFunctionIndex());
     pindices.push_back((*res)->getParameterIndex());
+    pindices.push_back(registerParameter((*res)->amp.real_del));
+    pindices.push_back(registerParameter((*res)->amp.imag_del));
+    pindices.push_back((*res)->amp.mode);
     (*res)->setConstantIndex(cIndex); 
     components.push_back(*res);
   }

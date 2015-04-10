@@ -322,10 +322,13 @@ __host__ TddpPdf::TddpPdf (std::string n, Variable* _dtime, Variable* _sigmat, V
   pindices.push_back(cacheToUse); 
 
   for (std::vector<ResonancePdf*>::iterator res = decayInfo->resonances.begin(); res != decayInfo->resonances.end(); ++res) {
-    pindices.push_back(registerParameter((*res)->amp_real));
-    pindices.push_back(registerParameter((*res)->amp_imag));
+    pindices.push_back(registerParameter((*res)->amp.real));
+    pindices.push_back(registerParameter((*res)->amp.imag));
     pindices.push_back((*res)->getFunctionIndex());
     pindices.push_back((*res)->getParameterIndex());
+    pindices.push_back(0); // TODO
+    pindices.push_back(0); // TODO
+    pindices.push_back(0); // TODO
     (*res)->setConstantIndex(cIndex); 
     components.push_back(*res);
   }
@@ -415,10 +418,13 @@ __host__ TddpPdf::TddpPdf (std::string n, Variable* _dtime, Variable* _sigmat, V
   pindices.push_back(cacheToUse); 
 
   for (std::vector<ResonancePdf*>::iterator res = decayInfo->resonances.begin(); res != decayInfo->resonances.end(); ++res) {
-    pindices.push_back(registerParameter((*res)->amp_real));
-    pindices.push_back(registerParameter((*res)->amp_imag));
+    pindices.push_back(registerParameter((*res)->amp.real));
+    pindices.push_back(registerParameter((*res)->amp.imag));
     pindices.push_back((*res)->getFunctionIndex());
     pindices.push_back((*res)->getParameterIndex());
+    pindices.push_back(0); // TODO
+    pindices.push_back(0); // TODO
+    pindices.push_back(0); // TODO
     (*res)->setConstantIndex(cIndex); 
     components.push_back(*res);
   }

@@ -711,18 +711,15 @@ __device__ resonance_function_ptr ptr_to_GAUSSIAN = gaussian;
 __device__ resonance_function_ptr ptr_to_NONRES = nonres;
 
 
-ResonancePdf::ResonancePdf (string name, 
-						Variable* ar, 
-						Variable* ai, 
-						Variable* mass, 
-						Variable* width, 
-						unsigned int sp, 
-						unsigned int cyc,
-                                                bool useNominalMass,
-                                                bool useUnNormalisedDampingFactors) 
-  : GooPdf(0, name)
-  , amp_real(ar)
-  , amp_imag(ai)
+ResonancePdf::ResonancePdf (string name,
+    const AmplitudeInfo &amp_,
+    Variable* mass, 
+    Variable* width, 
+    unsigned int sp, 
+    unsigned int cyc,
+    bool useNominalMass,
+    bool useUnNormalisedDampingFactors) 
+  : GooPdf(0, name), amp(amp_)
 {
   vector<unsigned int> pindices; 
   pindices.push_back(0); 
@@ -743,18 +740,15 @@ ResonancePdf::ResonancePdf (string name,
 }
 
 ResonancePdf::ResonancePdf (string name,
-                                                Variable* ar,
-                                                Variable* ai,
-                                                Variable* mass,
-                                                Variable* g_1,
-                                                Variable* g_KK_over_g_1,
-                                                unsigned int cyc,
-                                                CouplingTreatment square_couplings,
-                                                WhichMeson a_meson,
-                                                MesonCharge charged_meson)
-: GooPdf(0, name)
-, amp_real(ar)
-, amp_imag(ai)
+    const AmplitudeInfo &amp_,
+    Variable* mass,
+    Variable* g_1,
+    Variable* g_KK_over_g_1,
+    unsigned int cyc,
+    CouplingTreatment square_couplings,
+    WhichMeson a_meson,
+    MesonCharge charged_meson)
+: GooPdf(0, name), amp(amp_)
 {
   vector<unsigned int> pindices;
   pindices.push_back(0);
@@ -776,20 +770,17 @@ ResonancePdf::ResonancePdf (string name,
 }
 
 ResonancePdf::ResonancePdf (string name,
-                                                Variable* ar,
-                                                Variable* ai,
-                                                Variable* mass,
-                                                Variable* width,
-                                                Variable* lass_a,
-                                                Variable* lass_r,
-                                                Variable* lass_phi_f,
-                                                Variable* lass_phi_r,
-                                                Variable* lass_F,
-                                                unsigned int sp,
-                                                unsigned int cyc)
-: GooPdf(0, name)
-, amp_real(ar)
-, amp_imag(ai)
+    const AmplitudeInfo &amp_,
+    Variable* mass,
+    Variable* width,
+    Variable* lass_a,
+    Variable* lass_r,
+    Variable* lass_phi_f,
+    Variable* lass_phi_r,
+    Variable* lass_F,
+    unsigned int sp,
+    unsigned int cyc)
+: GooPdf(0, name), amp(amp_)
 {
   vector<unsigned int> pindices;
   pindices.push_back(0);
@@ -817,19 +808,16 @@ ResonancePdf::ResonancePdf (string name,
 }
 
 ResonancePdf::ResonancePdf(std::string name,
-              Variable* ar,
-              Variable* ai,
-              Variable* mass,
-              Variable* width,
-              Variable* lass_a,
-              Variable* lass_r,
-              const std::vector<Variable*> &poly_coeffs,
-              unsigned int sp,
-              unsigned int cyc,
-              FormFactorType fftype)
-: GooPdf(0, name)
-, amp_real(ar)
-, amp_imag(ai)
+    const AmplitudeInfo &amp_,
+    Variable* mass,
+    Variable* width,
+    Variable* lass_a,
+    Variable* lass_r,
+    const std::vector<Variable*> &poly_coeffs,
+    unsigned int sp,
+    unsigned int cyc,
+    FormFactorType fftype)
+: GooPdf(0, name), amp(amp_)
 {
   std::vector<unsigned int> pindices;
   pindices.push_back(0); // copying the rest of the constructors...
@@ -852,17 +840,14 @@ ResonancePdf::ResonancePdf(std::string name,
 }
 
 ResonancePdf::ResonancePdf (string name,
-  Variable* ar, 
-  Variable* ai, 
-  unsigned int sp, 
-  Variable* mass, 
-	Variable* width, 
-  unsigned int cyc,
-  bool useNominalMass,
-  bool useUnNormalisedDampingFactors) 
-: GooPdf(0, name)
-, amp_real(ar)
-, amp_imag(ai)
+    const AmplitudeInfo &amp_,
+    unsigned int sp, 
+    Variable* mass, 
+    Variable* width, 
+    unsigned int cyc,
+    bool useNominalMass,
+    bool useUnNormalisedDampingFactors) 
+: GooPdf(0, name), amp(amp_)
 {
   // Same as BW except for function pointed to. 
   vector<unsigned int> pindices; 
@@ -878,12 +863,8 @@ ResonancePdf::ResonancePdf (string name,
   initialise(pindices); 
 }
 
-ResonancePdf::ResonancePdf (string name, 
-  Variable* ar,
-  Variable* ai) 
-  : GooPdf(0, name)
-    , amp_real(ar)
-    , amp_imag(ai)
+ResonancePdf::ResonancePdf (string name, const AmplitudeInfo &amp_) 
+  : GooPdf(0, name), amp(amp_)
 {
   vector<unsigned int> pindices; 
   pindices.push_back(0); 
@@ -893,15 +874,12 @@ ResonancePdf::ResonancePdf (string name,
   initialise(pindices); 
 }
 
-ResonancePdf::ResonancePdf (string name,																																																			  						
-    Variable* ar, 																		
-    Variable* ai,
-		Variable* mean, 
-		Variable* sigma,
+ResonancePdf::ResonancePdf (string name,
+    const AmplitudeInfo &amp_,
+    Variable* mean, 
+    Variable* sigma,
     unsigned int cyc) 
-  : GooPdf(0, name)
-    , amp_real(ar)
-    , amp_imag(ai)
+  : GooPdf(0, name), amp(amp_)
 {
   vector<unsigned int> pindices; 
   pindices.push_back(0); 

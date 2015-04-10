@@ -138,6 +138,14 @@ template <typename T> HOST_STRING EXEC_TARGET devcomplex<T> makedevcomplex(T a, 
 #endif
 }
 
+template <typename T> HOST_STRING EXEC_TARGET devcomplex<T> makedevcomplex(T a, T b, T a_del, T b_del, bool add)
+{
+  if(add)
+    return makedevcomplex(a+a_del, b+b_del);
+  else
+    return makedevcomplex(a-a_del, b-b_del);
+}
+
 template <typename T> __host__ complex<T> makecomplex(T a, T b)
 {
 #ifdef USE_POLAR_AMPLITUDES

@@ -9,7 +9,8 @@ EXEC_TARGET devcomplex<fptype> getResonanceAmplitude (fptype m12, fptype m13, fp
 
 enum DaughterPair {PAIR_12 = 0, PAIR_13, PAIR_23}; 
 
-const int resonanceSize = 4;   // Number of parameters to describe one resonance.
+// OL changes from 4 to 7 (real, imag, 2 indices) to (real, real_del, imag, imag_del, mode, 2 indices)
+const int resonanceSize = 7;   // Number of parameters to describe one resonance.
 // Why not make this a static const member of ResonancePdf? Because the 'static'
 // keyword (and 'extern' as well) interacts badly with some nvcc versions when the
 // variable is used in device code. 
