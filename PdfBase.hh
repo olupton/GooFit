@@ -17,7 +17,7 @@ typedef thrust::constant_iterator<int> SizeIterator;
 typedef thrust::tuple<IndexIterator, DataIterator, SizeIterator> EventTuple; 
 typedef thrust::zip_iterator<EventTuple> EventIterator; 
 
-const int maxParams = 2000; 
+const int maxParams = 2100; 
 extern fptype* dev_event_array;
 extern fptype host_normalisation[maxParams];
 extern fptype host_params[maxParams];

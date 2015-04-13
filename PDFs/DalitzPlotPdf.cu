@@ -267,10 +267,12 @@ __host__ fptype DalitzPlotPdf::normalise () const {
   complex<fptype> sumIntegral(0, 0);
   for (unsigned int i = 0; i < decayInfo->resonances.size(); ++i) {
     int param_i = parameters + resonanceOffset_DP + resonanceSize*i; 
-    complex<fptype> amplitude_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]));
+    complex<fptype> amplitude_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]],
+          host_params[host_indices[param_i + 4]], host_params[host_indices[param_i + 5]], host_indices[param_i + 6]));
     for (unsigned int j = 0; j < decayInfo->resonances.size(); ++j) {
       int param_j = parameters + resonanceOffset_DP + resonanceSize*j; 
-      complex<fptype> amplitude_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]])));
+      complex<fptype> amplitude_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]],
+              host_params[host_indices[param_j + 4]], host_params[host_indices[param_j + 5]], host_indices[param_j + 6])));
       // Notice complex conjugation
 
       sumIntegral += (amplitude_i * amplitude_j * complex<fptype>((*(integrals[i][j])).real, (*(integrals[i][j])).imag)); 
@@ -305,12 +307,14 @@ __host__ std::vector<std::vector<fptype> > DalitzPlotPdf::getFitFractions()
   for(unsigned int i = 0; i < decayInfo->resonances.size(); ++i)
   {
     int param_i = parameters + resonanceOffset_DP + resonanceSize*i;
-    complex<fptype> amplitude_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]));
+    complex<fptype> amplitude_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]],
+          host_params[host_indices[param_i + 4]], host_params[host_indices[param_i + 5]], host_indices[param_i + 6]));
 
     for(unsigned int j = i; j < decayInfo->resonances.size(); ++j) // only fill one half of the results
     {
       int param_j = parameters + resonanceOffset_DP + resonanceSize*j;
-      complex<fptype> amplitude_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]])));
+      complex<fptype> amplitude_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]],
+              host_params[host_indices[param_j + 4]], host_params[host_indices[param_j + 5]], host_indices[param_j + 6])));
       // Notice complex conjugation
       amplitude_j *= amplitude_i * complex<fptype>((*(integrals[i][j])).real, (*(integrals[i][j])).imag);
       // for the diagonals, this complex number is actually real

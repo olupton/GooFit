@@ -99,15 +99,22 @@ EXEC_TARGET fptype device_DalitzPlotCoherence (fptype* evt, fptype* p, unsigned 
         paramIndex_j(parIndexFromResIndex_DP(j)),
         integral_index(get1Dindex(i, j, nResA, nResB));
       fptype
-        amp_real_i(p[pdfa_indices[paramIndex_i+0]]), // these aren't necessarily literally
-        amp_imag_i(p[pdfa_indices[paramIndex_i+1]]), // real and imaginary parts
-        amp_real_j(p[pdfb_indices[paramIndex_j+0]]),
-        amp_imag_j(p[pdfb_indices[paramIndex_j+1]]);
+        &amp_real_i(p[pdfa_indices[paramIndex_i+0]]), // these aren't necessarily literally
+        &amp_imag_i(p[pdfa_indices[paramIndex_i+1]]), // real and imaginary parts
+        &amp_real_delta_i(p[pdfa_indices[paramIndex_i+4]]),
+        &amp_imag_delta_i(p[pdfa_indices[paramIndex_i+5]]),
+        &amp_real_j(p[pdfb_indices[paramIndex_j+0]]),
+        &amp_imag_j(p[pdfb_indices[paramIndex_j+1]]),
+        &amp_real_delta_j(p[pdfb_indices[paramIndex_j+4]]),
+        &amp_imag_delta_j(p[pdfb_indices[paramIndex_j+5]]);
+      bool
+        amp_mode_i(pdfa_indices[paramIndex_i+6]),
+        amp_mode_j(pdfb_indices[paramIndex_j+6]);
       //printf("i = %d, j = %d, paramIndex_i = %d, paramIndex_j = %d, integral_index = %d, amp_real_i = %f, amp_imag_j = %f, amp_real_j = %f, amp_imag_j = %f\n",
       //    i, j, paramIndex_i, paramIndex_j, integral_index, amp_real_i, amp_imag_i, amp_real_j, amp_imag_j);
       devcomplex<fptype>
-        amp_i(makedevcomplex(amp_real_i, amp_imag_i)),
-        amp_j(conj(makedevcomplex(amp_real_j, amp_imag_j))),
+        amp_i(makedevcomplex(amp_real_i, amp_imag_i, amp_real_delta_i, amp_imag_delta_i, amp_mode_i)),
+        amp_j(conj(makedevcomplex(amp_real_j, amp_imag_j, amp_real_delta_j, amp_imag_delta_j, amp_mode_j))),
         cached_integral(device_integrals[cacheToUse][integral_index]);
       //printf("(%d, %d) cached_integral = %f + %fi\n", i, j, cached_integral.real, cached_integral.imag);
       coherence += amp_i * amp_j * cached_integral;
@@ -368,11 +375,13 @@ std::complex<fptype> DalitzPlotCoherencePdf::getCoherence()
   for(unsigned int i = 0; i < nResA; ++i)
   {
     unsigned int param_i(pdfa->getParameterIndex() + resonanceOffset_DP + resonanceSize*i);
-    std::complex<fptype> amp_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]]));
+    std::complex<fptype> amp_i(makecomplex(host_params[host_indices[param_i]], host_params[host_indices[param_i + 1]],
+          host_params[host_indices[param_i + 4]], host_params[host_indices[param_i + 5]], host_indices[param_i + 6]));
     for(unsigned int j = 0; j < nResB; ++j)
     {
       unsigned int param_j(pdfb->getParameterIndex() + resonanceOffset_DP + resonanceSize*j);
-      std::complex<fptype> amp_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]])));
+      std::complex<fptype> amp_j(conj(makecomplex(host_params[host_indices[param_j]], host_params[host_indices[param_j + 1]],
+              host_params[host_indices[param_j + 4]], host_params[host_indices[param_j + 5]], host_indices[param_j + 6])));
       std::complex<fptype> newterm(amp_i * amp_j * std::complex<fptype>(host_integrals[i][j].real, host_integrals[i][j].imag));
       //std::cout << "Adding: " << newterm.real() << " + " << newterm.imag() << "i" << std::endl;
       host_coherence += newterm;

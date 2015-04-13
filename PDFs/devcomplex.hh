@@ -155,6 +155,14 @@ template <typename T> __host__ complex<T> makecomplex(T a, T b)
 #endif
 }
 
+template <typename T> __host__ complex<T> makecomplex(T a, T b, T a_del, T b_del, bool add)
+{
+  if(add)
+    return makecomplex(a+a_del, b+b_del);
+  else
+    return makecomplex(a-a_del, b-b_del);
+}
+
 typedef devcomplex<fptype> fpcomplex;
 
 #endif
