@@ -108,11 +108,14 @@ void FitManager::getMinuitValues () const {
 
 void FitManager::getMinosErrors() const {
   int counter = 0;
-  minuit->mnmnos();
+  //minuit->mnmnos();
   for (std::vector<Variable*>::iterator i = vars.begin(); i != vars.end(); ++i)
   {
     double eparab;
-    minuit->mnerrs(counter++, (*i)->error_pos, (*i)->error_neg, eparab, (*i)->gcc);
+    minuit->mnerrs(counter, (*i)->error_pos, (*i)->error_neg, eparab, (*i)->gcc);
+    if((*i)->dominos)
+      minuit->mnmnot(counter, 0, (*i)->error_pos, (*i)->error_neg);
+    counter++;
   }
 }
 

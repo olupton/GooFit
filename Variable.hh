@@ -33,7 +33,7 @@ struct Variable : Indexable {
   fptype upperlimit;
   fptype lowerlimit;
   int numbins; 
-  bool fixed; 
+  bool fixed, dominos; 
   fptype blind; 
 }; 
 

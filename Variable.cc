@@ -5,6 +5,7 @@ Variable::Variable (std::string n)
   : Indexable(n) 
   , numbins(100)
   , fixed(false)
+  , dominos(false)
   , blind(0)
   , error(0.0)
   , error_pos(0.0)
@@ -25,6 +26,7 @@ Variable::Variable (std::string n, fptype v)
   , upperlimit(v + 0.01)
   , numbins(100)
   , fixed(true)
+  , dominos(false)
   , blind(0)
 {
 }
@@ -35,6 +37,7 @@ Variable::Variable (std::string n, fptype dn, fptype up)
   , lowerlimit(dn)
   , numbins(100)
   , fixed(false)
+  , dominos(false)
   , blind(0)
   , error_pos(0.0)
   , error_neg(0.0)
@@ -53,6 +56,7 @@ Variable::Variable (std::string n, fptype v, fptype dn, fptype up)
   , lowerlimit(dn)
   , numbins(100)
   , fixed(false)
+  , dominos(false)
   , blind(0)
 {
 }
@@ -67,6 +71,7 @@ Variable::Variable (std::string n, fptype v, fptype e, fptype dn, fptype up)
   , lowerlimit(dn)
   , numbins(100)
   , fixed(false)
+  , dominos(false)
   , blind(0)
 {
 }
@@ -86,6 +91,7 @@ std::ostream& operator<<(std::ostream &oss, const Variable &var)
   << "\tupperlimit = " << var.upperlimit << std::endl
   << "\tnumbins = " << var.numbins << std::endl
   << "\tindex = " << var.index << std::endl
+  << "\tdominos = " << (var.dominos ? "true" : "false") << std::endl
   << "\tfixed = " << (var.fixed ? "true" : "false") << std::endl;
   return oss;
 }
