@@ -375,21 +375,72 @@ __device__ devcomplex<fptype> polylass(fptype m12, fptype m13, fptype m23, unsig
      }
     }
   }
-  else if((formfactor_type == ResonancePdf::NORMPOLY) || (formfactor_type == ResonancePdf::NORMEXPPOLY))
+  else if((formfactor_type == ResonancePdf::NORMPOLY) || (formfactor_type == ResonancePdf::NORMEXPPOLY)
+      || (formfactor_type == ResonancePdf::CENTRENORMEXPPOLY) || (formfactor_type == ResonancePdf::CENTRENORMEXPPOLYRECURSIVE)
+      || (formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVE) || (formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVEALT))
   {
     fptype expansion_parameter(SQRT(rMassSq) / resmass);
-    fptype norm(1.0);
+    fptype _mA = (PAIR_12 == cyclic_index ? daug1Mass : (PAIR_13 == cyclic_index ? daug3Mass : daug2Mass));
+    fptype _mB = (PAIR_12 == cyclic_index ? daug2Mass : (PAIR_13 == cyclic_index ? daug1Mass : daug3Mass));
+    fptype _mC = (PAIR_12 == cyclic_index ? daug3Mass : (PAIR_13 == cyclic_index ? daug2Mass : daug1Mass));
+    fptype centre_parameter(0.5*(motherMass - _mC + _mA + _mB) / resmass);
+    fptype norm(1.0), centrenorm(1.0);
     poly = 1.0;
     for(unsigned int poly_index = 0; poly_index < num_poly_coeffs; ++poly_index)
     {
       fptype coeff(cudaArray[indices[10 + poly_index]]);
+      if(poly_index > 0 && formfactor_type == ResonancePdf::CENTRENORMEXPPOLYRECURSIVE)
+        coeff *= cudaArray[indices[10 + 0]]; // a,b,c -> (a, ab, ac)
+      else if((formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVEALT)
+          or (formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVE))
+      {
+        if(num_poly_coeffs != 3)
+          printf("Wrong number of parameters for CENTRENORMEXPPOLYDEEPRECURSIVE[ALT]\n");
+        fptype
+          &c1(cudaArray[indices[10 + 0]]),
+          &c2(cudaArray[indices[10 + 1]]),
+          &c3(cudaArray[indices[10 + 2]]);
+        bool alt(formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVEALT);
+        if(poly_index == 0)
+        {
+          if(alt)
+            // neut
+            coeff = -0.452*c1 -0.676*c2 - 0.582*c3;
+          else
+            coeff = -0.460*c1 + 0.702*c2 - 0.543*c3;
+        }
+        else if(poly_index == 1)
+        {
+          if(alt)
+            // neut
+            coeff = 0.776*c1 + 0.0243*c2 - 0.631*c3;
+          else
+            coeff = 0.776*c1 + 0.197*c2 - 0.631*c3;
+        }
+        else
+        {
+          if(alt)
+            // neut
+            coeff = -0.440*c1 + 0.737*c2 - 0.513*c3;
+          else
+            coeff = -0.433*c1 - 0.711*c2 - 0.554*c3;
+        }
+      }
       poly += pow(expansion_parameter, int(poly_index+1)) * coeff;
       norm += coeff;
+      centrenorm += pow(centre_parameter, int(poly_index+1)) * coeff;
     }
 
     if(formfactor_type == ResonancePdf::NORMEXPPOLY)
     {
       poly = EXP(poly - norm); // exponential of the polynomial, divided by the exponential of when the parameter is 1
+    }
+    else if(formfactor_type == ResonancePdf::CENTRENORMEXPPOLY
+        or formfactor_type == ResonancePdf::CENTRENORMEXPPOLYRECURSIVE
+        or formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVE
+        or formfactor_type == ResonancePdf::CENTRENORMEXPPOLYDEEPRECURSIVEALT)
+    {
+      poly = EXP(poly - centrenorm);
     }
     else
     {
